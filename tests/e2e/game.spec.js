@@ -117,6 +117,7 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   const input = bay.getByRole('textbox', { name: 'Paste the configuration JSON' });
   const apply = bay.getByRole('button', { name: 'Apply JSON' });
   const hp = bay.locator('#hp-0');
+  const projectileSpeed = bay.getByRole('slider', { name: 'Projectile speed for Red' });
   const status = bay.locator('.loadout-json').getByRole('status');
 
   await input.fill('{');
@@ -147,6 +148,14 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   await expect(status).toHaveText('Configuration loaded.');
   await expect(hp).toHaveValue(String(config.stats.hp));
   await expect(bay.locator('#strategy-0-0')).toHaveValue(config.strategy);
+  await expect(projectileSpeed).toHaveValue(String(ATTRIBUTES_BASE));
+
+  await hp.press('ArrowLeft');
+  await projectileSpeed.press('ArrowRight');
+  await page.reload();
+  await expect(projectileSpeed).toHaveValue(String(ATTRIBUTES_BASE + 1));
+  await expect(bay.locator('.budget output')).toHaveText('0');
+  await bay.getByText('JSON configuration', { exact: true }).click();
 
   const downloadEvent = page.waitForEvent('download');
   await bay.getByRole('button', { name: /Download JSON/ }).click();
@@ -154,7 +163,10 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   const stream = await download.createReadStream();
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
-  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual(config);
+  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual({
+    ...config,
+    stats: { ...config.stats, hp: config.stats.hp - 1, projectileSpeed: ATTRIBUTES_BASE + 1 },
+  });
 });
 
 test('o idioma escolhido é aplicado ao hangar e persiste após recarregar', async ({ page }) => {

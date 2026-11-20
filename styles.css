@@ -120,6 +120,7 @@ h1 { font: 800 clamp(2.75rem, 5.5vw, 4.45rem)/.96 var(--display); text-transform
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .attributes, .equipment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
 .attribute { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 6px; padding: 8px 10px 5px; background: var(--inset); border: 1px solid var(--border); }
+.attribute:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .attribute label { display: flex; align-items: center; gap: 6px; font-size: .875rem; overflow-wrap: anywhere; }
 .attribute label .icon { width: 15px; height: 15px; color: var(--accent); }
 .attribute-value {

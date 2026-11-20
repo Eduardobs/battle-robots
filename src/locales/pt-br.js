@@ -79,6 +79,8 @@ export default {
   "attr.evasion.description": "Aumenta a chance de desviar",
   "attr.aim.name": "Mira",
   "attr.aim.description": "Aumenta a chance de acertar",
+  "attr.projectileSpeed.name": "Velocidade do projétil",
+  "attr.projectileSpeed.description": "Cada ponto acima do valor base aumenta a velocidade dos projéteis da arma em 0,1%",
   "guns.pulse.name": "Canhão de pulso",
   "guns.pulse.description": "Curto alcance · Empurra o rival",
   "guns.disc.name": "Disco ricochete",

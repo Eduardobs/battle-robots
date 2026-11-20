@@ -79,6 +79,8 @@ export default {
   "attr.evasion.description": "Increases the chance to dodge",
   "attr.aim.name": "Aim",
   "attr.aim.description": "Increases the chance to hit",
+  "attr.projectileSpeed.name": "Projectile speed",
+  "attr.projectileSpeed.description": "Each point above the base value increases the weapon's projectile speed by 0.1%",
   "guns.pulse.name": "Pulse cannon",
   "guns.pulse.description": "Short range · Pushes the opponent",
   "guns.disc.name": "Ricochet disc",

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ATTRIBUTES_BASE } from '../../config.js';
 import { createBattle, EDGE, generateArena, HEIGHT, RADIUS, STEP, WIDTH } from '../../src/battle.js';
 import { guns } from '../../src/catalog.js';
 
@@ -234,6 +235,24 @@ test('a pistola viaja mais rápido que o disco e ambos causam dano só no impact
   assert.equal(target.hp, 100 - guns.pistol.damage);
   for (let frame = 0; frame < 25; frame++) step();
   assert.equal(target.hp, 100 - guns.pistol.damage - guns.disc.damage);
+});
+
+test('velocidade do projétil aumenta proporcionalmente à velocidade base de cada arma', () => {
+  const weapons = Object.keys(guns).filter(key => guns[key].projectileSpeed);
+  const loadoutWithBonus = loadout({ weapons, speed: 0 });
+  loadoutWithBonus.stats.projectileSpeed = ATTRIBUTES_BASE + 250;
+  const { state, step } = duel([loadoutWithBonus, loadout({ speed: 0 })]);
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 50 });
+  Object.assign(target, { x: 190, y: 50 });
+
+  step();
+  assert.equal(state.projectiles.length, weapons.length);
+  step();
+  for (const shot of state.projectiles) {
+    const expected = 100 + guns[shot.key].projectileSpeed * 1.25 * STEP;
+    assert.ok(Math.abs(shot.x - expected) < 1e-8, shot.key);
+  }
 });
 
 test('um disparo já lançado passa pelo ponto onde o alvo estava', () => {

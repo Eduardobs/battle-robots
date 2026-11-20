@@ -79,6 +79,8 @@ export default {
   "attr.evasion.description": "Aumenta la probabilidad de esquivar",
   "attr.aim.name": "Puntería",
   "attr.aim.description": "Aumenta la probabilidad de acertar",
+  "attr.projectileSpeed.name": "Velocidad del proyectil",
+  "attr.projectileSpeed.description": "Cada punto por encima del valor base aumenta la velocidad de los proyectiles del arma un 0,1 %",
   "guns.pulse.name": "Cañón de pulso",
   "guns.pulse.description": "Alcance corto · Empuja al rival",
   "guns.disc.name": "Disco de rebote",

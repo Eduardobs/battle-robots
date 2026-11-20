@@ -1,4 +1,4 @@
-import { BATTLE_TIME_IN_SECONDS } from '../config.js';
+import { ATTRIBUTES_BASE, BATTLE_TIME_IN_SECONDS } from '../config.js';
 import { attributes, guns, utils } from './catalog.js';
 
 export const WIDTH = 1040;
@@ -8,6 +8,7 @@ export const RADIUS = 19;
 export const STEP = 1 / 60;
 
 const SPEED_PER_POINT = 1.5;
+const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
 const CONTACT_RANGE = RADIUS * 2;
 const DODGE_LOOKAHEAD = 0.45;
 const DODGE_CLEARANCE = RADIUS + 4;
@@ -229,14 +230,17 @@ export function createBattle(loadouts, {
 } = {}) {
   const arena = generateArena(random);
   const navigation = prepareNavigation(arena.walls);
-  const robots = loadouts.map((loadout, id) => ({
-    id, x: id === 0 ? 71 : WIDTH - 71, y: HEIGHT / 2, angle: id === 0 ? 0 : Math.PI,
-    stats: { ...loadout.stats }, hp: loadout.stats.hp, strategy: loadout.strategy,
-    guns: loadout.guns.map(key => ({ key, ready: 0 })),
-    utils: loadout.utils.map(key => ({ key, ready: 0, until: 0 })),
-    baseStats: { ...loadout.stats }, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
-    waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false,
-  }));
+  const robots = loadouts.map((loadout, id) => {
+    const baseStats = { projectileSpeed: ATTRIBUTES_BASE, ...loadout.stats };
+    return {
+      id, x: id === 0 ? 71 : WIDTH - 71, y: HEIGHT / 2, angle: id === 0 ? 0 : Math.PI,
+      stats: { ...baseStats }, hp: baseStats.hp, strategy: loadout.strategy,
+      guns: loadout.guns.map(key => ({ key, ready: 0 })),
+      utils: loadout.utils.map(key => ({ key, ready: 0, until: 0 })),
+      baseStats, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
+      waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false,
+    };
+  });
   const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
 
   let nextDrop = 5;
@@ -765,13 +769,15 @@ export function createBattle(loadouts, {
 
   function launch(robot, key, target, bounce, anchor) {
     const { range, projectileSpeed } = guns[key];
+    const bonus = (robot.stats.projectileSpeed - ATTRIBUTES_BASE) * PROJECTILE_SPEED_BONUS_PER_POINT;
+    const speed = projectileSpeed * (1 + bonus);
     const from = { x: robot.x, y: robot.y };
     const aim = bounce || target;
     const span = distance(from, aim) || 1;
     const direction = { x: (aim.x - from.x) / span, y: (aim.y - from.y) / span };
     const leg = anchor ? { to: anchor.contact } : projectileLeg(from, direction, range, state.walls);
     state.projectiles.push({
-      key, robot, speed: projectileSpeed, anchor, x: from.x, y: from.y,
+      key, robot, speed, anchor, x: from.x, y: from.y,
       from, ...leg, canBounce: key === 'disc', range,
     });
   }
