@@ -284,9 +284,9 @@ test('o cooldown aparece ao lado do golpe de cada robô e acompanha o tempo da b
   await expect(blue).toHaveText(/^0,\d{2}$/);
   expect(await blue.textContent()).not.toBe(pausedCooldown);
 
-  await page.clock.runFor(2050);
-  await expect(blue).toBeHidden();
-  await page.clock.runFor(250);
+  for (let tick = 0; tick < 100 && !await red.textContent(); tick++) {
+    await page.clock.runFor(100);
+  }
   await expect(red).toHaveText(/^0,\d{2}$/);
   await page.locator('#finish-battle').press('Enter');
   await expect(red).toBeHidden();

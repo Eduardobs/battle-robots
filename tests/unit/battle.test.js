@@ -251,6 +251,71 @@ test('um disparo já lançado passa pelo ponto onde o alvo estava', () => {
   assert.ok(events.some(event => event.action === 'event.miss' && event.item === 'guns.disc.name'));
 });
 
+test('o robô prioriza a esquiva e retoma o caminho para o item após o projétil passar', () => {
+  const { state, step } = duel([
+    loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 100 }),
+  ]);
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 140, y: 50 });
+  Object.assign(target, { x: 280, y: 50, goal: target, thinkAt: Infinity });
+  step();
+  const drop = { x: 410, y: 50, type: 'health' };
+  state.drops.push(drop);
+  Object.assign(target, { intent: 'drop', goal: drop });
+
+  step();
+  assert.equal(target.x, 280);
+  assert.ok(target.y > 50);
+  assert.equal(target.goal, drop);
+
+  for (let frame = 0; frame < 50; frame++) step();
+  assert.equal(target.hp, 100);
+  assert.ok(target.x > 280);
+});
+
+test('um projétil fora da rota do robô não interrompe seu movimento', () => {
+  const { state, step } = duel([
+    loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 100 }),
+  ]);
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 50 });
+  Object.assign(target, { x: 280, y: 50, goal: target, thinkAt: Infinity });
+  step();
+  Object.assign(target, { y: 90, goal: { x: 400, y: 90 } });
+
+  step();
+  assert.equal(target.y, 90);
+  assert.ok(target.x > 280);
+});
+
+test('um robô rápido evita reentrar ou cruzar a trajetória até o projétil desaparecer', () => {
+  const shotY = 77;
+  for (const goalY of [shotY, 38]) {
+    const { state, step } = duel([
+      loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 3500 }),
+    ]);
+    const [attacker, target] = state.robots;
+    const endX = 100 + guns.disc.range;
+    Object.assign(attacker, { x: 100, y: shotY });
+    Object.assign(target, { x: endX, y: shotY, goal: target, thinkAt: Infinity });
+    step();
+    const [shot] = state.projectiles;
+
+    for (let frame = 0; frame < 60 && target.y === shotY; frame++) step();
+    assert.ok(target.y > shotY + RADIUS);
+    assert.ok(state.projectiles.includes(shot));
+    target.goal = { x: endX, y: goalY };
+
+    while (state.projectiles.includes(shot)) {
+      step();
+      assert.ok(target.y > shotY + RADIUS);
+      assert.equal(target.hp, 100);
+    }
+    step();
+    assert.equal(target.y, goalY);
+  }
+});
+
 test('o disco percorre os dois trechos do ricochete para acertar atrás da parede', () => {
   const { state, step } = duel([
     loadout({ weapons: ['pistol', 'disc'], speed: 0 }), loadout({ speed: 0 }),

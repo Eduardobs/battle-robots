@@ -9,6 +9,8 @@ export const STEP = 1 / 60;
 
 const SPEED_PER_POINT = 1.5;
 const CONTACT_RANGE = RADIUS * 2;
+const DODGE_LOOKAHEAD = 0.45;
+const DODGE_CLEARANCE = RADIUS + 4;
 const weaponRange = key => guns[key].range ?? CONTACT_RANGE;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -60,6 +62,17 @@ function pointAlong(a, b, fraction) {
   return { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction };
 }
 
+function closestFraction(from, to, point) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+  return lengthSquared ? clamp(((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared, 0, 1) : 0;
+}
+
+function pathClearance(point, from, to) {
+  return distance(point, pointAlong(from, to, closestFraction(from, to, point)));
+}
+
 function projectileLeg(from, direction, range, walls, previousWall) {
   const { x, y } = direction;
   const limitX = x < 0 ? EDGE : WIDTH - EDGE;
@@ -90,12 +103,12 @@ function projectileLeg(from, direction, range, walls, previousWall) {
   return { to, reflection, surface };
 }
 
-function robotImpact(from, to, target) {
+function robotImpact(from, to, target, radius = RADIUS) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const x = from.x - target.x;
   const y = from.y - target.y;
-  const gap = x * x + y * y - RADIUS ** 2;
+  const gap = x * x + y * y - radius ** 2;
   if (gap <= 0) return 0;
   const lengthSquared = dx * dx + dy * dy;
   const projection = x * dx + y * dy;
@@ -103,6 +116,20 @@ function robotImpact(from, to, target) {
   if (!lengthSquared || projection >= 0 || discriminant < 0) return Infinity;
   const entry = (-projection - Math.sqrt(discriminant)) / lengthSquared;
   return entry <= 1 ? entry : Infinity;
+}
+
+function entersProjectilePath(start, end, axis, { from, to }) {
+  const clearance = DODGE_CLEARANCE - 1e-8;
+  if (pathClearance(start, from, to) < clearance) return false;
+  // The swept path of an axis-aligned move is a rectangle with circular ends.
+  const padX = axis === 'y' ? clearance : 0;
+  const padY = axis === 'x' ? clearance : 0;
+  const swept = {
+    x: Math.min(start.x, end.x) - padX, y: Math.min(start.y, end.y) - padY,
+    w: Math.abs(end.x - start.x) + padX * 2, h: Math.abs(end.y - start.y) + padY * 2,
+  };
+  return impact(from, to, swept) !== null ||
+    robotImpact(from, to, end, clearance) !== Infinity;
 }
 
 const ECHO_DELAY = 0.5;
@@ -453,7 +480,7 @@ export function createBattle(loadouts, {
     return false;
   }
 
-  function move(robot, target, amount, opponent) {
+  function move(robot, target, amount, opponent, paths = []) {
     const span = distance(robot, target);
     if (span < 0.1) return false;
     const to = pointAlong(robot, target, Math.min(amount / span, 1));
@@ -473,7 +500,8 @@ export function createBattle(loadouts, {
         const contact = opponent[axis] + side * clearance;
         next[axis] = clamp(contact, Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis]));
       }
-      if (!blocked(robot, next, navigation.solids)) robot[axis] = next[axis];
+      if (next[axis] !== robot[axis] && !blocked(robot, next, navigation.solids) &&
+          !paths.some(path => entersProjectilePath(robot, next, axis, path))) robot[axis] = next[axis];
     }
     return distance(prior, robot) > 0.01;
   }
@@ -514,6 +542,68 @@ export function createBattle(loadouts, {
     return target;
   }
 
+  function projectilePaths(robot) {
+    const paths = [];
+    for (const shot of state.projectiles) {
+      if (shot.robot === robot) continue;
+      paths.push({ from: shot, to: shot.to, speed: shot.speed, delay: 0 });
+      if (!shot.canBounce || !shot.reflection) continue;
+      const remaining = shot.range - distance(shot.from, shot.to);
+      if (remaining <= 1e-8) continue;
+      const { to } = projectileLeg(shot.to, shot.reflection, remaining, state.walls, shot.surface);
+      paths.push({ from: shot.to, to, speed: shot.speed, delay: distance(shot, shot.to) / shot.speed });
+    }
+    return paths;
+  }
+
+  function dodgeTarget(robot, enemy, speed, dt, paths) {
+    if (speed <= 0) return null;
+    const horizon = Math.max(dt, DODGE_LOOKAHEAD);
+    const threats = [];
+
+    for (const { from, to, speed, delay } of paths) {
+      const span = distance(from, to);
+      const length = Math.min(span, (horizon - delay) * speed);
+      if (length <= 0) continue;
+      const end = pointAlong(from, to, length / span);
+      const fraction = closestFraction(from, end, robot);
+      const clearance = distance(robot, pointAlong(from, end, fraction));
+      if (clearance >= (fraction === 0 && delay === 0 ? RADIUS : DODGE_CLEARANCE)) continue;
+      threats.push({
+        from, end, clearance, time: delay + fraction * length / speed,
+        angle: Math.atan2(to.y - from.y, to.x - from.x),
+      });
+    }
+
+    if (!threats.length) return null;
+
+    const urgent = threats.reduce((first, threat) => threat.time < first.time ? threat : first);
+    const reach = Math.min(speed * Math.max(dt, urgent.time), DODGE_CLEARANCE * 2);
+    let best = Math.min(...threats.map(threat => threat.clearance));
+    let target = null;
+    for (const offset of steeringOffsets) {
+      const angle = urgent.angle + Math.PI / 2 + offset * Math.PI / 6;
+      const point = {
+        x: clamp(robot.x + Math.cos(angle) * reach, EDGE + RADIUS, WIDTH - EDGE - RADIUS),
+        y: clamp(robot.y + Math.sin(angle) * reach, EDGE + RADIUS, HEIGHT - EDGE - RADIUS),
+      };
+      if (blocked(robot, point, navigation.solids) ||
+          distance(enemy, pointAlong(robot, point, closestFraction(robot, point, enemy))) <
+            Math.min(CONTACT_RANGE, distance(robot, enemy)) - 1e-8) continue;
+      const span = distance(robot, point);
+      if (span <= 0.01) continue;
+      const score = Math.min(DODGE_CLEARANCE, ...threats.map(({ from, end, time }) => {
+        const position = pointAlong(robot, point, Math.min(1, speed * Math.max(dt, time) / span));
+        return pathClearance(position, from, end);
+      }));
+      if (score > best + 1e-8) {
+        target = point;
+        best = score;
+      }
+    }
+    return target;
+  }
+
   function walk(robot, enemy, dt) {
     robot.muddy = inMud(robot, state.mud);
 
@@ -532,16 +622,22 @@ export function createBattle(loadouts, {
     const firingDistance = firingRange(robot);
     const preferred = Math.max(CONTACT_RANGE, firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83));
     const speed = movementSpeed(robot);
-    if (state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
+    const paths = projectilePaths(robot);
+    const dodge = dodgeTarget(robot, enemy, speed, dt, paths);
+    if (!dodge && state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
     const prior = { x: robot.x, y: robot.y };
     let target = robot;
     let moving = false;
-    if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE) {
+    if (dodge) {
+      target = dodge;
+      moving = move(robot, target, speed * dt, enemy, paths);
+      robot.nextPath = 0;
+    } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE) {
       let remaining = speed * dt;
       while (remaining > 0) {
         target = rangedTarget(robot, enemy, distance(robot, enemy), firingDistance);
         const travel = Math.min(remaining, distance(robot, target));
-        if (!move(robot, target, travel, enemy)) break;
+        if (!move(robot, target, travel, enemy, paths)) break;
         moving = true;
         remaining -= travel;
       }
@@ -551,7 +647,7 @@ export function createBattle(loadouts, {
         robot.nextPath = state.time + 0.20;
       }
       target = robot.waypoint;
-      moving = move(robot, target, speed * dt, enemy);
+      moving = move(robot, target, speed * dt, enemy, paths);
     }
     if (moving) robot.heading = Math.atan2(robot.y - prior.y, robot.x - prior.x);
     turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
