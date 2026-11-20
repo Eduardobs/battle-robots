@@ -118,6 +118,7 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   const apply = bay.getByRole('button', { name: 'Apply JSON' });
   const hp = bay.locator('#hp-0');
   const projectileSpeed = bay.getByRole('slider', { name: 'Projectile speed for Red' });
+  const power = bay.getByRole('slider', { name: 'Power for Red' });
   const status = bay.locator('.loadout-json').getByRole('status');
   await expect(bay.locator('#evasion-0, #aim-0')).toHaveCount(0);
 
@@ -149,12 +150,15 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   await expect(hp).toHaveValue(String(config.stats.hp));
   await expect(bay.locator('#strategy-0-0')).toHaveValue(config.strategy);
   await expect(projectileSpeed).toHaveValue(String(ATTRIBUTES_BASE));
+  await expect(power).toHaveValue(String(ATTRIBUTES_BASE));
 
   await hp.press('ArrowLeft');
   await projectileSpeed.press('ArrowRight');
+  await power.press('ArrowRight');
   await page.reload();
   await expect(projectileSpeed).toHaveValue(String(ATTRIBUTES_BASE + 1));
-  await expect(bay.locator('.budget output')).toHaveText('2');
+  await expect(power).toHaveValue(String(ATTRIBUTES_BASE + 1));
+  await expect(bay.locator('.budget output')).toHaveText('1');
   await bay.getByText('JSON configuration', { exact: true }).click();
 
   const downloadEvent = page.waitForEvent('download');
@@ -165,7 +169,7 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   for await (const chunk of stream) chunks.push(chunk);
   expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual({
     ...config,
-    stats: { ...config.stats, hp: config.stats.hp - 1, projectileSpeed: ATTRIBUTES_BASE + 1 },
+    stats: { ...config.stats, hp: config.stats.hp - 1, projectileSpeed: ATTRIBUTES_BASE + 1, power: ATTRIBUTES_BASE + 1 },
   });
 });
 

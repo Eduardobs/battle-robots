@@ -77,6 +77,8 @@ export default {
   "attr.speed.description": "Aumenta a velocidade de movimento",
   "attr.projectileSpeed.name": "Velocidade do projétil",
   "attr.projectileSpeed.description": "Cada ponto acima do valor base aumenta a velocidade dos projéteis da arma em 0,1%",
+  "attr.power.name": "Potência",
+  "attr.power.description": "Quando os robôs avançam um contra o outro em contato, o mais potente empurra o adversário. Quanto maior a diferença, mais rápido o empurrão.",
   "guns.pulse.name": "Canhão de pulso",
   "guns.pulse.description": "Curto alcance · Empurra o rival",
   "guns.disc.name": "Disco ricochete",

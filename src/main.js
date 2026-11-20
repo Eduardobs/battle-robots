@@ -62,7 +62,7 @@ function validateConfiguration(value) {
   if (!value || typeof value !== 'object') return;
   const { stats: savedStats, guns, utils, strategy } = value;
   if (!savedStats || typeof savedStats !== 'object') return;
-  const stats = { projectileSpeed: ATTRIBUTES_BASE, ...savedStats };
+  const stats = { projectileSpeed: ATTRIBUTES_BASE, power: ATTRIBUTES_BASE, ...savedStats };
   const entries = attributes.map(({ id }) => [id, stats[id]]);
   if (entries.some(([, points]) => !Number.isInteger(points) || points < ATTRIBUTES_BASE)) return;
   const config = { stats: Object.fromEntries(entries), guns, utils, strategy };

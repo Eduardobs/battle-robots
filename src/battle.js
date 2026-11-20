@@ -8,6 +8,7 @@ export const RADIUS = 19;
 export const STEP = 1 / 60;
 
 const SPEED_PER_POINT = 1.5;
+const PUSH_POWER_SCALE = 100;
 const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
 const CONTACT_RANGE = RADIUS * 2;
 const DODGE_LOOKAHEAD = 0.45;
@@ -258,7 +259,7 @@ export function createBattle(loadouts, {
   const arena = generateArena(random);
   const navigation = prepareNavigation(arena.walls, arena.spikePatches);
   const robots = loadouts.map((loadout, id) => {
-    const stats = { projectileSpeed: ATTRIBUTES_BASE, ...loadout.stats };
+    const stats = { projectileSpeed: ATTRIBUTES_BASE, power: ATTRIBUTES_BASE, ...loadout.stats };
     const baseStats = Object.fromEntries(attributes.map(({ id }) => [id, stats[id]]));
     return {
       id, x: id === 0 ? 71 : WIDTH - 71, y: HEIGHT / 2, angle: id === 0 ? 0 : Math.PI,
@@ -547,7 +548,7 @@ export function createBattle(loadouts, {
     return false;
   }
 
-  function move(robot, target, amount, opponent, paths) {
+  function move(robot, target, amount, opponent, paths, movement) {
     const span = distance(robot, target);
     if (span < 0.1) return false;
     const to = pointAlong(robot, target, Math.min(amount / span, 1));
@@ -560,18 +561,61 @@ export function createBattle(loadouts, {
         ...next,
         [axis]: clamp(opponent[axis], Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis])),
       };
-      if (distance(closest, opponent) < RADIUS * 2 && distance(closest, opponent) < distance(robot, opponent)) {
+      const contactWithOpponent = distance(closest, opponent) < CONTACT_RANGE &&
+        distance(closest, opponent) < distance(robot, opponent);
+      if (contactWithOpponent) {
         const crossGap = axis === 'x' ? robot.y - opponent.y : robot.x - opponent.x;
-        const clearance = Math.sqrt((RADIUS * 2) ** 2 - crossGap ** 2);
+        const clearance = Math.sqrt(CONTACT_RANGE ** 2 - crossGap ** 2);
         const side = Math.sign(robot[axis] - opponent[axis]);
         const contact = opponent[axis] + side * clearance;
         next[axis] = clamp(contact, Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis]));
       }
-      if (next[axis] !== robot[axis] && !blocked(robot, next, navigation.solids) &&
-          !(paths && (entersSpikes(robot, next) ||
-            paths.some(path => entersProjectilePath(robot, next, axis, path))))) robot[axis] = next[axis];
+      if (!contactWithOpponent && next[axis] === robot[axis]) continue;
+      if (blocked(robot, next, navigation.solids) || (paths && (entersSpikes(robot, next) ||
+          paths.some(path => entersProjectilePath(robot, next, axis, path))))) continue;
+      if (contactWithOpponent && movement) {
+        movement.pressure = { x: (target.x - prior.x) / span, y: (target.y - prior.y) / span };
+      }
+      robot[axis] = next[axis];
     }
     return distance(prior, robot) > 0.01;
+  }
+
+  function pushOpponents(movements, dt) {
+    const [a, b] = robots;
+    const [first, second] = movements.map(({ pressure }) => pressure);
+    const difference = a.stats.power - b.stats.power;
+    if (!first || !second || !difference || Math.abs(distance(a, b) - CONTACT_RANGE) > 1e-8) return false;
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (first.x * dx + first.y * dy <= 0 || second.x * dx + second.y * dy >= 0) return false;
+    const stronger = difference > 0 ? a : b;
+    const direction = difference > 0 ? first : second;
+    const advantage = Math.abs(difference);
+    let travel = movementSpeed(stronger) * dt * advantage / (advantage + PUSH_POWER_SCALE);
+
+    for (const robot of robots) {
+      for (const [axis, extent] of [['x', WIDTH], ['y', HEIGHT]]) {
+        const component = direction[axis];
+        if (!component) continue;
+        const boundary = component > 0 ? extent - EDGE - RADIUS : EDGE + RADIUS;
+        travel = Math.min(travel, (boundary - robot[axis]) / component);
+      }
+    }
+    if (travel <= 0) return false;
+
+    for (const robot of robots) {
+      const end = { x: robot.x + direction.x * travel, y: robot.y + direction.y * travel };
+      const entry = Math.min(...navigation.solids.map(wall => impact(robot, end, wall) ?? Infinity));
+      if (entry <= 1) travel = travel * entry - 1e-8;
+      if (travel <= 1e-8) return false;
+    }
+    for (const robot of robots) {
+      robot.x += direction.x * travel;
+      robot.y += direction.y * travel;
+    }
+    return true;
   }
 
   function turnToward(robot, target, dt) {
@@ -671,7 +715,7 @@ export function createBattle(loadouts, {
     return target;
   }
 
-  function walk(robot, enemy, dt) {
+  function walk(robot, enemy, dt, movement) {
     robot.muddy = inMud(robot, state.mud);
 
     if (robot.pull) {
@@ -692,13 +736,12 @@ export function createBattle(loadouts, {
     const paths = projectilePaths(robot);
     const dodge = dodgeTarget(robot, enemy, speed, dt, paths);
     if (!dodge && state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
-    const prior = { x: robot.x, y: robot.y };
     const escape = safeTarget(robot);
     let target = robot;
     let moving = false;
     if (dodge || escape !== robot) {
       target = dodge || escape;
-      moving = move(robot, target, speed * dt, enemy, paths);
+      moving = move(robot, target, speed * dt, enemy, paths, movement);
       robot.nextPath = 0;
     } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE &&
         (span <= firingDistance || !entersSpikes(robot, enemy))) {
@@ -706,22 +749,24 @@ export function createBattle(loadouts, {
       while (remaining > 0) {
         target = rangedTarget(robot, enemy, distance(robot, enemy), firingDistance);
         const travel = Math.min(remaining, distance(robot, target));
-        if (!move(robot, target, travel, enemy, paths)) break;
+        if (!move(robot, target, travel, enemy, paths, movement)) break;
         moving = true;
         remaining -= travel;
       }
+    } else if (robot.goal === enemy && clear && preferred === CONTACT_RANGE &&
+        Math.abs(span - CONTACT_RANGE) <= 1e-8) {
+      target = enemy;
+      moving = move(robot, target, speed * dt, enemy, paths, movement);
     } else if (robot.goal !== enemy || span > preferred || !clear) {
       if (state.time >= robot.nextPath || !robot.waypoint || distance(robot, robot.waypoint) < 7) {
         robot.waypoint = nextWaypoint(robot, safeTarget(robot.goal, robot), navigation);
         robot.nextPath = state.time + 0.20;
       }
       target = robot.waypoint;
-      moving = move(robot, target, speed * dt, enemy, paths);
+      moving = move(robot, target, speed * dt, enemy, paths, movement);
     }
-    if (moving) robot.heading = Math.atan2(robot.y - prior.y, robot.x - prior.x);
     turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
-    if (moving !== robot.moving) log(robot, moving ? 'event.move' : 'event.hold');
-    robot.moving = moving;
+    return moving;
   }
 
   function useTools(robot, enemy) {
@@ -948,9 +993,11 @@ export function createBattle(loadouts, {
       finish('knockout');
       return;
     }
+    const movements = robots.map(({ x, y }) => ({ x, y }));
     for (const robot of order) {
       useTools(robot, robots[1 - robot.id]);
-      walk(robot, robots[1 - robot.id], delta);
+      const movement = movements[robot.id];
+      movement.walked = walk(robot, robots[1 - robot.id], delta, movement);
       const hologram = robot.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
       if (hologram) {
         const { decoy, heading } = hologram;
@@ -958,6 +1005,15 @@ export function createBattle(loadouts, {
           y: decoy.y + Math.sin(heading) * 75 * delta };
         if (!blocked(decoy, next, arena.walls)) Object.assign(decoy, next);
       }
+    }
+    const pushed = pushOpponents(movements, delta);
+    for (const robot of order) {
+      const { x, y, walked } = movements[robot.id];
+      if (walked === undefined && !pushed) continue;
+      const moving = walked || pushed;
+      if (moving) robot.heading = Math.atan2(robot.y - y, robot.x - x);
+      if (moving !== robot.moving) log(robot, moving ? 'event.move' : 'event.hold');
+      robot.moving = moving;
     }
     for (let index = 0; index < state.drops.length;) {
       const drop = state.drops[index];

@@ -77,6 +77,8 @@ export default {
   "attr.speed.description": "Increases movement speed",
   "attr.projectileSpeed.name": "Projectile speed",
   "attr.projectileSpeed.description": "Each point above the base value increases the weapon's projectile speed by 0.1%",
+  "attr.power.name": "Power",
+  "attr.power.description": "When robots drive into each other, the one with higher power pushes its opponent. A bigger difference means a faster push.",
   "guns.pulse.name": "Pulse cannon",
   "guns.pulse.description": "Short range · Pushes the opponent",
   "guns.disc.name": "Ricochet disc",

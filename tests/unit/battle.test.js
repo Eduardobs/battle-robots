@@ -43,6 +43,63 @@ test('um movimento rápido para no contato com o adversário', () => {
   assert.equal(fast.x, slow.x - 38);
 });
 
+test('a diferença de Potência determina a direção e a velocidade na disputa corpo a corpo', () => {
+  const start = 200;
+  const displacements = [];
+  for (const difference of [0, 100, 200, -100]) {
+    const configs = [loadout({ speed: 100, weapons: ['saw'] }), loadout({ speed: 100, weapons: ['saw'] })];
+    configs[difference < 0 ? 1 : 0].stats.power = ATTRIBUTES_BASE + Math.abs(difference);
+    const { state, step } = duel(configs);
+    const [a, b] = state.robots;
+    assert.equal(b.baseStats.power, difference < 0 ? ATTRIBUTES_BASE + 100 : ATTRIBUTES_BASE);
+    Object.assign(a, { x: start, y: 50 });
+    Object.assign(b, { x: start + 2 * RADIUS, y: 50 });
+    for (let frame = 0; frame < 4; frame++) step();
+    assert.ok(Math.abs(b.x - a.x - 2 * RADIUS) < 1e-8);
+    displacements.push(a.x - start);
+  }
+  const [tie, smaller, larger, reverse] = displacements;
+  assert.equal(tie, 0);
+  assert.ok(smaller > 0 && larger > smaller);
+  assert.ok(Math.abs(smaller + reverse) < 1e-8);
+});
+
+test('a Potência exige que ambos avancem e mantém a direção do avanço em diagonal', () => {
+  const component = 2 * RADIUS / Math.sqrt(2);
+  for (const opposingSpeed of [0, 100]) {
+    const strong = loadout({ speed: 100, weapons: ['saw'] });
+    strong.stats.power = ATTRIBUTES_BASE + 100;
+    const { state, step } = duel([strong, loadout({ speed: opposingSpeed, weapons: ['saw'] })]);
+    const [a, b] = state.robots;
+    Object.assign(a, { x: 200, y: 50 });
+    Object.assign(b, { x: a.x + component, y: a.y + component });
+    step();
+    const dx = a.x - 200;
+    const dy = a.y - 50;
+    assert.ok(Math.abs(dx - dy) < 1e-8);
+    assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - 2 * RADIUS) < 1e-8);
+    if (opposingSpeed) assert.ok(dx > 0);
+    else assert.ok(Math.abs(dx) < 1e-8);
+  }
+});
+
+test('o empurrão mantém os robôs em contato sem atravessar paredes ou a borda', () => {
+  for (const boundary of ['wall', 'edge']) {
+    const strong = loadout({ speed: 100, weapons: ['saw'] });
+    strong.stats.power = ATTRIBUTES_BASE + 5000;
+    const { state, step } = duel([strong, loadout({ speed: 100, weapons: ['saw'] })]);
+    const [a, b] = state.robots;
+    const wall = state.walls[0];
+    const limit = boundary === 'wall' ? wall.x - RADIUS : WIDTH - EDGE - RADIUS;
+    const y = boundary === 'wall' ? wall.y + wall.h / 2 : HEIGHT / 2;
+    Object.assign(b, { x: limit - 1, y, goal: a, thinkAt: Infinity });
+    Object.assign(a, { x: b.x - 2 * RADIUS, y, goal: b, thinkAt: Infinity });
+    for (let frame = 0; frame < 4; frame++) step();
+    assert.ok(b.x <= limit && limit - b.x < 1e-7);
+    assert.ok(Math.abs(b.x - a.x - 2 * RADIUS) < 1e-8);
+  }
+});
+
 test('o dano escala com a razão entre ataque e defesa', () => {
   for (const [attack, defense, multiplier] of [[10, 10, 1], [100, 10, 10], [100, 100, 1], [10, 100, 0.1]]) {
     const { state, step, events } = duel([
