@@ -12,7 +12,7 @@ function scorePanel(pilot, id) {
   const detailsOpen = document.getElementById(`robot-details-${id}`)?.open;
   return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div><div class="score-tools"></div>
-    <ul class="battle-statuses"><li></li><li>${t('status.locked')}</li><li>${t('status.frozen')}</li></ul>
+    <ul class="battle-statuses"><li></li><li></li><li></li></ul>
     <details class="robot-details" id="robot-details-${id}"${detailsOpen ? ' open' : ''}>
       <summary>${t('robotDetails')}</summary>
       <div class="battle-detail-groups">
@@ -40,24 +40,34 @@ export function buildScoreboard() {
 function updateEquipment(group, items, kind) {
   if (group.items?.length === items.length && items.every((item, i) => item === group.items[i])) return;
   group.items = [...items];
+  const counterClass = kind === 'guns' ? 'weapon-cooldown' : 'tool-cooldown';
+  const counterTip = t(kind === 'guns' ? 'cooldownTip' : 'toolCooldownTip');
   group.list.innerHTML = items.map(({ key, expires }) => `<li>
     ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
-      ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>${kind === 'guns'
-      ? `<span class="weapon-cooldown" title="${t('cooldownTip')}"></span>` : ''}</li>`).join('') || '<li>—</li>';
-  if (kind === 'guns') group.counters = group.list.querySelectorAll('.weapon-cooldown');
+      ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>
+    <span class="${counterClass}" title="${counterTip}"></span></li>`).join('') || '<li>—</li>';
+  group.counters = group.list.querySelectorAll(`.${counterClass}`);
+}
+
+function formatRemaining(until, time) {
+  const remaining = Math.round((until - time) * 100);
+  return remaining > 0 ? (remaining / 100).toFixed(2).replace('.', decimalSeparator) : '';
+}
+
+function updateStatus(field, label, until, time) {
+  const remaining = formatRemaining(until, time);
+  const text = `${label} ${remaining || `0${decimalSeparator}00`} s`;
+  if (field.textContent !== text) field.textContent = text;
+  field.classList.toggle('inactive', !remaining);
 }
 
 export function updateRobotDetails({ robots, time, result }) {
   for (const robot of robots) {
     const score = scores[robot.id];
-    const burns = robot.burns.length;
-    if (score.burns !== burns) {
-      score.burns = burns;
-      score.statuses[0].textContent = `${t('status.burned')} ×${burns}`;
-      score.statuses[0].classList.toggle('inactive', burns === 0);
-    }
-    score.statuses[1].classList.toggle('inactive', robot.lockedUntil <= time + 1e-8);
-    score.statuses[2].classList.toggle('inactive', robot.frozenUntil <= time + 1e-8);
+    const burnUntil = Math.max(0, ...robot.burns.map(burn => burn.until));
+    updateStatus(score.statuses[0], `${t('status.burned')} ×${robot.burns.length}`, burnUntil, time);
+    updateStatus(score.statuses[1], t('status.locked'), robot.lockedUntil, time);
+    updateStatus(score.statuses[2], t('status.frozen'), robot.frozenUntil, time);
 
     for (const stat of score.stats) {
       const value = robot.stats[stat.id];
@@ -70,13 +80,23 @@ export function updateRobotDetails({ robots, time, result }) {
         : '';
       stat.field.innerHTML = numberFormat.format(value) + bonus;
     }
-    updateEquipment(score.utils, robot.utils, 'utils');
-    updateEquipment(score.guns, robot.guns, 'guns');
-    score.guns.counters.forEach((counter, index) => {
-      const remaining = result ? 0 : Math.round((robot.guns[index].ready - time) * 100);
-      const text = remaining > 0 ? (remaining / 100).toFixed(2).replace('.', decimalSeparator) : '';
-      if (counter.textContent !== text) counter.textContent = text;
-    });
+    for (const kind of ['utils', 'guns']) {
+      const items = robot[kind];
+      const group = score[kind];
+      updateEquipment(group, items, kind);
+      group.counters.forEach((counter, index) => {
+        const text = result ? '' : formatRemaining(items[index].ready, time);
+        if (counter.textContent !== text) counter.textContent = text;
+      });
+    }
+
+    const tools = robot.intent ? [t(`intent.${robot.intent}`)] : [];
+    for (const item of robot.utils) {
+      const remaining = formatRemaining(item.until, time);
+      if (remaining) tools.push(`${t(`utils.${item.key}.name`)} ${remaining} s`);
+    }
+    const toolText = tools.join(' · ');
+    if (score.tools.textContent !== toolText) score.tools.textContent = toolText;
   }
 }
 
@@ -96,11 +116,6 @@ export function updateScore(state) {
       });
       score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
     }
-    const tools = [
-      robot.intent && t(`intent.${robot.intent}`),
-      ...robot.utils.filter(item => item.until > state.time).map(item => t(`utils.${item.key}.name`)),
-    ].filter(Boolean).join(' · ');
-    if (score.tools.textContent !== tools) score.tools.textContent = tools;
   });
   updateRobotDetails(state);
 }

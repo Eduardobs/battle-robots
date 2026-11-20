@@ -43,3 +43,45 @@ test('o placar acompanha a troca de arma no mesmo slot e o fim de um bônus', as
   expect(snapshots[2].weapon).toBe('—');
   expect(snapshots[2].cooldown).toBeUndefined();
 });
+
+test('o placar exibe a duração dos status e o tempo até reutilizar cada ferramenta', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { buildScoreboard, updateScore } = await import('./src/arena/scoreboard.js');
+    const { createBattle } = await import('./src/battle.js');
+    const { loadouts } = await import('./src/hangar/loadouts.js');
+    const { setLanguage } = await import('./src/i18n.js');
+    const { state } = createBattle(loadouts);
+    setLanguage('pt-br');
+    const robot = state.robots[0];
+    robot.burns = [{ until: 2 }, { until: 3 }];
+    robot.lockedUntil = 1.5;
+    robot.frozenUntil = 2.5;
+    robot.guns = [{ key: 'hammer', ready: 0 }];
+    robot.utils = [{ key: 'shield', until: 3, ready: 20 }, { key: 'nitro', until: 0, ready: 0 }];
+    state.time = 1;
+    buildScoreboard();
+    updateScore(state);
+    window.advanceScoreboard = () => {
+      state.time = 3;
+      robot.burns = [];
+      updateScore(state);
+    };
+  });
+
+  const score = page.locator('.score').first();
+  const details = score.locator('.robot-details');
+  await details.evaluate(panel => { panel.open = true; });
+  const statuses = score.locator('.battle-statuses li');
+  const cooldowns = details.locator('.tool-cooldown');
+  await expect(statuses).toHaveText(['Queimado ×2 2,00 s', 'Travado 0,50 s', 'Congelado 1,50 s']);
+  await expect(score.locator('.score-tools')).toHaveText('Escudo 2,00 s');
+  await expect(cooldowns.first()).toHaveText('19,00');
+  await expect(cooldowns.last()).toBeHidden();
+  await expect(details.locator('[data-kind="guns"] li')).toHaveText('Marreta');
+
+  await page.evaluate(() => window.advanceScoreboard());
+  await expect(score.locator('.battle-statuses li:visible')).toHaveCount(0);
+  await expect(score.locator('.score-tools')).toBeEmpty();
+  await expect(cooldowns.first()).toHaveText('17,00');
+});

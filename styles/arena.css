@@ -44,7 +44,7 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
 .score-hp { text-align: right; }
 .hp-track { margin-top: 4px; }
 .hp-track i { transition: none; }
-.score-tools { min-height: 1em; margin-top: 3px; color: #c5ebfa; overflow-wrap: anywhere; }
+.score-tools { min-height: 1em; margin-top: 3px; color: #c5ebfa; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .timer { display: grid; align-content: center; justify-items: center; gap: 2px; padding: 4px 8px; background: #0d1621; }
 .timer strong { font: 600 clamp(1.3rem,2vw,2rem)/1 var(--mono); color: var(--signal); }
 .timer-label { display: flex; align-items: center; gap: 4px; font-size: .65rem; }
@@ -80,6 +80,7 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
 }
 .battle-statuses li {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   padding: 1px 4px;
   border: 1px solid currentColor;
   border-radius: 4px;
@@ -114,14 +115,14 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
 .battle-stats dd { margin: 0; text-align: right; font-family: var(--mono); }
 .battle-stats .drop-bonus { margin-inline-start: 4px; }
 .drop-bonus { color: var(--signal); font: 500 .68rem var(--mono); white-space: nowrap; }
-.weapon-cooldown {
+.weapon-cooldown, .tool-cooldown {
   flex: none;
   margin-inline-start: auto;
   color: var(--accent);
   font: 500 .68rem var(--mono);
   white-space: nowrap;
 }
-.weapon-cooldown:empty { display: none; }
+.weapon-cooldown:empty, .tool-cooldown:empty { display: none; }
 .arena-frame { position: relative; align-self: stretch; min-height: 0; padding: 4px; border: 1px solid #405364; background: #1b2835; }
 #field { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--inset); }
 .result-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 10px; background: #070d16cc; }

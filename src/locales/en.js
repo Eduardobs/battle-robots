@@ -16,6 +16,7 @@ export default {
   "newerEvents": "Newer events",
   "eventRange": "Events {first}–{last} of {total}",
   "cooldownTip": "Seconds until the next attack",
+  "toolCooldownTip": "Seconds until the next use",
   "language": "Language",
   "stages": "Match stages",
   "hangar": "Hangar",
