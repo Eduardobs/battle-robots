@@ -32,6 +32,14 @@ python3 -m http.server 8000
 
 Abra [localhost:8000](http://localhost:8000).
 
+## Organização do código
+
+- `src/main.js` inicializa a página, aplica o idioma e alterna entre hangar e arena.
+- `src/hangar/` reúne a edição dos robôs, a persistência local e a importação e exportação em JSON.
+- `src/battle.js` coordena cada passo da partida. Os módulos de `src/simulation/` calculam terreno, rotas, movimento, colisões e ataques.
+- `src/arena/` controla a partida no navegador e apresenta o campo, o placar e o histórico de eventos.
+- `src/ui/` contém ícones e formatadores compartilhados. As folhas de estilo ficam em `styles/`, divididas entre base, hangar e arena.
+
 ## Testes
 
 Use Node.js 22 ou superior. Os testes de ponta a ponta também usam Python 3 para servir o jogo localmente.
@@ -50,13 +58,13 @@ Edite [config.js](config.js).
 
 | Regra | Padrão |
 | --- | ---: |
-| `ATTRIBUTES_POINTS` | 500 |
-| `BATTLE_TIME_IN_SECONDS` | 120 |
+| `ATTRIBUTES_POINTS` | 5000 |
+| `BATTLE_TIME_IN_SECONDS` | 300 |
 | `ATTRIBUTES_BASE` | 10 |
 | `GUNS_QUANTITY` | 1 |
 | `UTILS_QUANTITY` | 1 |
 
-Use HP base e duração positivos. Atualmente é possível instalar de 0 a 8 armas e de 0 a 5 ferramentas distintas por robô. A recarga de cada ferramenta começa no instante da ativação.
+Use HP base e duração positivos. Atualmente é possível instalar de 0 a 9 armas e de 0 a 5 ferramentas distintas por robô. A recarga de cada ferramenta começa no instante da ativação.
 
 ## GitHub Pages
 

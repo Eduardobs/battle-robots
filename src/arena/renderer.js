@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, EDGE, RADIUS } from './battle.js';
-import { pilots } from './catalog.js';
-import { damageFormat, t } from './i18n.js';
+import { WIDTH, HEIGHT, EDGE, RADIUS } from '../simulation/arena.js';
+import { pilots } from '../catalog.js';
+import { damageFormat, t } from '../i18n.js';
 
 const dropSymbols = { health: '+', attribute: '↑', teleport: '↯' };
 
