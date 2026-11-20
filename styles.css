@@ -209,7 +209,11 @@ body:has(#arena:not([hidden])) .topbar-inner,
   gap: 10px;
 }
 
-.arena-heading { margin-bottom: 0; }
+.arena-heading { flex-wrap: wrap; margin-bottom: 0; }
+.arena-actions, #battle-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#battle-controls .ready-button { width: auto; min-height: 37px; margin: 0; padding: 0 10px; font-size: 1rem; }
+#finish-battle { border-color: var(--border); background: var(--panel); color: var(--text); }
+#finish-battle:hover { border-color: var(--lime); color: var(--lime); }
 .arena-heading h1 { margin-bottom: 0; font-size: clamp(2.4rem, 4.5vw, 3.5rem); }
 .scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 11px; }
 .score, .timer { padding: 9px 12px; border: 1px solid var(--border); background: var(--panel); }

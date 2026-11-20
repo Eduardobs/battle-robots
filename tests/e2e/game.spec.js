@@ -124,3 +124,39 @@ test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ p
   await expect(hangar.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(2);
   await expect(first.locator('#hp-0')).toBeEnabled();
 });
+
+test('a batalha pode ser pausada, retomada e encerrada durante a pausa', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  const ready = page.getByRole('button', { name: 'Ready', exact: true });
+  await ready.first().click();
+  await ready.first().click();
+
+  const countdown = page.locator('#countdown');
+  const events = page.locator('#events');
+  const pause = page.getByRole('button', { name: 'Pause battle' });
+  const resume = page.getByRole('button', { name: 'Resume battle' });
+  await pause.click();
+  await expect(resume).toBeFocused();
+  await expect(page.locator('#battle-status')).toHaveText('Battle paused');
+  const pausedTime = await countdown.textContent();
+  const pausedEvents = await events.textContent();
+
+  await page.clock.runFor(2500);
+  await expect(countdown).toHaveText(pausedTime);
+  await expect(events).toHaveText(pausedEvents);
+
+  await resume.click();
+  await page.clock.runFor(1250);
+  await expect(countdown).not.toHaveText(pausedTime);
+
+  await pause.click();
+  const finalTime = await countdown.textContent();
+  await page.getByRole('button', { name: 'End battle' }).click();
+  await expect(page.locator('#result-reason')).toHaveText('Ended manually');
+  await expect(page.locator('#result-title')).toBeFocused();
+  await expect(events).toContainText('Battle ended manually');
+  await expect(resume).toBeHidden();
+  await page.clock.runFor(2500);
+  await expect(countdown).toHaveText(finalTime);
+});

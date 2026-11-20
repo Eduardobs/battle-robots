@@ -293,6 +293,7 @@ export function createBattle(loadouts, {
   }
 
   function finish(reason) {
+    if (state.result) return;
     const [a, b] = robots;
     const winner = Math.abs(a.hp - b.hp) < 1e-8 ? null : a.hp > b.hp ? a.id : b.id;
     state.result = { winner, reason };
@@ -567,5 +568,5 @@ export function createBattle(loadouts, {
     if (!state.result && state.time >= state.duration) finish('timeout');
   }
 
-  return { state, step };
+  return { state, step, finish: () => finish('manualEnd') };
 }

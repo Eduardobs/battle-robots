@@ -11,6 +11,9 @@ const bays = byId('bays');
 const events = byId('events');
 const eventScroll = byId('event-scroll');
 const result = byId('result');
+const battleControls = byId('battle-controls');
+const pauseButton = byId('pause-battle');
+const finishButton = byId('finish-battle');
 const robotDetails = pilots.map((_, id) => byId(`robot-details-${id}`));
 const render = createRenderer(byId('field'));
 const languageSelect = byId('language');
@@ -25,7 +28,11 @@ let bayList = [];
 let scores = [];
 let countdown;
 let displayedSeconds;
-let battleState;
+let battle;
+let paused = false;
+let previous;
+let elapsed;
+let nextScore;
 const MAX_EVENT_ROWS = 160;
 const SCORE_INTERVAL = 0.1;
 const MAX_FRAME_DELAY = 0.1;
@@ -430,9 +437,15 @@ function updateScore(state) {
   });
 }
 
+function updateBattleControls() {
+  const finished = Boolean(battle?.state.result);
+  battleControls.hidden = !battle || finished;
+  byId('battle-status').textContent = t(finished ? 'finished' : paused ? 'paused' : 'intent.fight');
+  pauseButton.textContent = t(paused ? 'resumeBattle' : 'pauseBattle');
+}
+
 function showResult(state, focus = true) {
   const { winner, reason } = state.result;
-  byId('battle-status').textContent = t('finished');
   byId('result-reason').textContent = t(reason);
   byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: pilotName(winner) });
   byId('result-score').textContent = state.robots
@@ -441,46 +454,78 @@ function showResult(state, focus = true) {
   if (focus) byId('result-title').focus({ preventScroll: true });
 }
 
-function start() {
-  clearEvents();
-  result.hidden = true;
-  byId('battle-status').textContent = t('intent.fight');
-  setStage(true);
-  byId('arena-title').focus({ preventScroll: true });
-  const battle = createBattle(loadouts, { onEvent: queueEvent });
+function frame(timestamp) {
   const { state } = battle;
-  battleState = state;
-  render(state);
-  updateScore(state);
-  flushEvents();
-  let previous = performance.now();
-  let elapsed = 0;
-  let nextScore = SCORE_INTERVAL;
-  function frame(timestamp) {
-    elapsed += Math.min(MAX_FRAME_DELAY, Math.max(0, (timestamp - previous) / 1000));
-    previous = timestamp;
-    const time = state.time;
-    while (elapsed >= STEP && !state.result) {
-      battle.step();
-      elapsed -= STEP;
-    }
-    if (state.time !== time) {
-      render(state);
-      if (state.result || state.time >= nextScore) {
-        updateScore(state);
-        nextScore = state.time + SCORE_INTERVAL;
-      }
-      flushEvents();
-    }
-    if (state.result) showResult(state);
-    else frameId = requestAnimationFrame(frame);
+  elapsed += Math.min(MAX_FRAME_DELAY, Math.max(0, (timestamp - previous) / 1000));
+  previous = timestamp;
+  const time = state.time;
+  while (elapsed >= STEP && !state.result) {
+    battle.step();
+    elapsed -= STEP;
   }
+  if (state.time !== time) {
+    render(state);
+    if (state.result || state.time >= nextScore) {
+      updateScore(state);
+      nextScore = state.time + SCORE_INTERVAL;
+    }
+    flushEvents();
+  }
+  if (state.result) {
+    updateBattleControls();
+    showResult(state);
+  } else {
+    frameId = requestAnimationFrame(frame);
+  }
+}
+
+function scheduleFrame() {
+  previous = performance.now();
   frameId = requestAnimationFrame(frame);
 }
 
+function start() {
+  clearEvents();
+  result.hidden = true;
+  paused = false;
+  elapsed = 0;
+  nextScore = SCORE_INTERVAL;
+  battle = createBattle(loadouts, { onEvent: queueEvent });
+  updateBattleControls();
+  setStage(true);
+  byId('arena-title').focus({ preventScroll: true });
+  render(battle.state);
+  updateScore(battle.state);
+  flushEvents();
+  scheduleFrame();
+}
+
+pauseButton.addEventListener('click', () => {
+  if (!battle || battle.state.result) return;
+  paused = !paused;
+  if (paused) {
+    cancelAnimationFrame(frameId);
+    updateScore(battle.state);
+  } else {
+    scheduleFrame();
+  }
+  updateBattleControls();
+});
+
+finishButton.addEventListener('click', () => {
+  if (!battle || battle.state.result) return;
+  cancelAnimationFrame(frameId);
+  battle.finish();
+  updateScore(battle.state);
+  flushEvents();
+  updateBattleControls();
+  showResult(battle.state);
+});
+
 byId('reset').addEventListener('click', () => {
   cancelAnimationFrame(frameId);
-  battleState = undefined;
+  battle = undefined;
+  paused = false;
   clearEvents();
   loadouts.forEach(loadout => { loadout.ready = false; });
   bayList.forEach((_, id) => refresh(id));
@@ -500,11 +545,12 @@ function applyLanguage(code) {
   document.querySelector('meta[name="description"]').content = t('description');
   languageSelect.setAttribute('aria-label', t('language'));
   byId('match-length').textContent = t('matchLength', { time: timecode(BATTLE_TIME_IN_SECONDS) });
-  byId('battle-status').textContent = t('intent.fight');
+  updateBattleControls();
   buildBays();
   buildScoreboard();
   eventRows.forEach(({ row, event }) => updateEvent(row, event));
-  if (battleState) {
+  if (battle) {
+    const battleState = battle.state;
     render(battleState);
     updateScore(battleState);
     if (battleState.result) showResult(battleState, false);

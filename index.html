@@ -42,7 +42,13 @@
           <p class="eyebrow" data-t="duel"></p>
           <h1 id="arena-title" tabindex="-1" data-t="arenaTitle"></h1>
         </div>
-        <span class="mode" id="battle-status"></span>
+        <div class="arena-actions">
+          <div id="battle-controls" hidden>
+            <button class="ready-button" id="pause-battle" type="button"></button>
+            <button class="ready-button" id="finish-battle" type="button" data-t="finishBattle"></button>
+          </div>
+          <span class="mode" id="battle-status" role="status"></span>
+        </div>
       </div>
       <div class="scoreboard" id="scoreboard"></div>
       <div class="arena-layout">
