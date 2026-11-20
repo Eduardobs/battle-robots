@@ -1,5 +1,8 @@
 import { WIDTH, HEIGHT, EDGE, RADIUS } from './battle.js';
 import { pilots } from './catalog.js';
+import { damageFormat, t } from './i18n.js';
+
+const dropSymbols = { health: '+', attribute: '↑', teleport: '↯' };
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
@@ -151,7 +154,7 @@ export function createRenderer(canvas) {
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffe1a0';
-      ctx.fillText(`−${event.amount.toFixed(1)}`, from.x + 16, from.y - 15 - progress * 16);
+      ctx.fillText(`−${damageFormat.format(event.amount)}`, from.x + 16, from.y - 15 - progress * 16);
     } else if (kind === 'dodge') {
       circle(ctx, '#a8efff', from.x, from.y, 20 + progress * 10, 2);
     } else if (kind === 'hook' || kind === 'tether') {
@@ -200,14 +203,13 @@ export function createRenderer(canvas) {
     }
     ctx.drawImage(backdrop, 0, 0);
     for (const drop of state.drops) {
-      const symbols = { Vida: '+', Atributo: '↑', Arma: 'A', Ferramenta: 'F', Teletransporte: '↯' };
       const pulse = 16 + 2 * Math.sin(state.time * 5);
       circle(ctx, '#dbfb4866', drop.x, drop.y, pulse, 2);
       rect(ctx, '#dbfb48', drop.x - 10, drop.y - 10, 20, 20);
       ctx.fillStyle = '#182015';
       ctx.textAlign = 'center';
       ctx.font = 'bold 18px monospace';
-      ctx.fillText(symbols[drop.type], drop.x, drop.y + 6);
+      ctx.fillText(dropSymbols[drop.type] ?? t(`dropSymbol.${drop.type}`), drop.x, drop.y + 6);
     }
     state.robots.forEach(robot => drawRobot(robot, state.time));
     state.effects.forEach(event => drawEffect(event, state));

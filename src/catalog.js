@@ -1,28 +1,28 @@
 export const attributes = [
-  { id: 'hp', label: 'HP', icon: 'heart', description: 'Vida máxima' },
-  { id: 'defense', label: 'Defesa', icon: 'shield', description: 'Reduz o dano recebido' },
-  { id: 'attack', label: 'Ataque', icon: 'swords', description: 'Aumenta o dano causado' },
-  { id: 'speed', label: 'Velocidade', icon: 'bolt', description: 'Aumenta a velocidade de movimento' },
-  { id: 'evasion', label: 'Evasão', icon: 'wind', description: 'Aumenta a chance de desviar' },
-  { id: 'aim', label: 'Mira', icon: 'target', description: 'Aumenta a chance de acertar' },
+  { id: 'hp', icon: 'heart' },
+  { id: 'defense', icon: 'shield' },
+  { id: 'attack', icon: 'swords' },
+  { id: 'speed', icon: 'bolt' },
+  { id: 'evasion', icon: 'wind' },
+  { id: 'aim', icon: 'target' },
 ];
 
 export const guns = {
-  flame: { name: 'Lança-chamas', icon: 'flame', range: 195, interval: 0.45, damage: 4, description: 'Médio · Queima por 3 s' },
-  pistol: { name: 'Pistola', icon: 'pistol', range: 340, interval: 1.1, damage: 11, description: 'Longo · 18% de chance de crítico' },
-  saw: { name: 'Serra giratória', icon: 'saw', range: 64, interval: 0.23, damage: 3, description: 'Curto · Dano contínuo' },
-  hammer: { name: 'Grande martelo', icon: 'hammer', range: 76, interval: 1.7, damage: 25, description: 'Curto · Dano alto' },
-  hook: { name: 'Gancho', icon: 'hook', range: 230, interval: 1.8, damage: 5, description: 'Médio · Puxa o alvo ou prende na parede' },
+  flame: { icon: 'flame', range: 195, interval: 0.45, damage: 4 },
+  pistol: { icon: 'pistol', range: 340, interval: 1.1, damage: 11 },
+  saw: { icon: 'saw', range: 64, interval: 0.23, damage: 3 },
+  hammer: { icon: 'hammer', range: 76, interval: 1.7, damage: 25 },
+  hook: { icon: 'hook', range: 230, interval: 1.8, damage: 5 },
 };
 
 export const utils = {
-  shield: { name: 'Escudo', icon: 'shield', duration: 3, cooldown: 20, description: '−45% de dano por 3 s · Recarga 20 s' },
-  nitro: { name: 'Nitro (NO₂)', icon: 'bolt', duration: 5, cooldown: 20, description: '+20% de velocidade por 5 s · Recarga 20 s' },
+  shield: { icon: 'shield', duration: 3, cooldown: 20 },
+  nitro: { icon: 'bolt', duration: 5, cooldown: 20 },
 };
 
 export const pilots = [
-  { name: 'Vetor', color: '#ff8b54', ink: '#ffb183', className: 'orange' },
-  { name: 'Pulso', color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
+  { color: '#ff8b54', ink: '#ffb183', className: 'orange' },
+  { color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
 ];
 
 const icons = {

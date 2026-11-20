@@ -143,10 +143,10 @@ export function createBattle(loadouts, {
   function spawnDrop() {
     const spot = pick(freePositions());
     if (!spot) return;
-    const type = pick(['Vida', 'Atributo', 'Arma', 'Ferramenta', 'Teletransporte']);
+    const type = pick(['health', 'attribute', 'weapon', 'tool', 'teleport']);
     state.drops.push({ ...spot, type });
     robots.forEach(robot => { robot.thinkAt = 0; });
-    log(null, `Drop na arena · ${type}`);
+    log(null, 'event.spawn', `drop.${type}`);
   }
 
   function expire(robot) {
@@ -155,12 +155,12 @@ export function createBattle(loadouts, {
       if (key === 'hp') robot.hp *= robot.baseStats.hp / robot.stats.hp;
       robot.stats[key] = robot.baseStats[key];
       delete robot.boosts[key];
-      log(robot, `Bônus encerrado · ${attributes.find(attr => attr.id === key).label}`);
+      log(robot, 'event.expireBoost', `attr.${key}.name`);
     }
-    for (const [items, catalog] of [[robot.guns, guns], [robot.utils, utils]]) {
+    for (const [items, kind] of [[robot.guns, 'guns'], [robot.utils, 'utils']]) {
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].expires <= state.time + 1e-8) {
-          log(robot, `Equipamento removido · ${catalog[items[i].key].name}`);
+          log(robot, 'event.remove', `${kind}.${items[i].key}.name`);
           items.splice(i, 1);
         }
       }
@@ -170,12 +170,12 @@ export function createBattle(loadouts, {
   function collect(robot, drop) {
     state.drops.splice(state.drops.indexOf(drop), 1);
     robots.forEach(unit => { unit.thinkAt = 0; });
-    log(robot, `Coletou drop · ${drop.type}`);
-    if (drop.type === 'Vida') {
+    log(robot, 'event.collect', `drop.${drop.type}`);
+    if (drop.type === 'health') {
       robot.hp = Math.min(robot.stats.hp, robot.hp + robot.stats.hp * 0.2);
       return;
     }
-    if (drop.type === 'Teletransporte') {
+    if (drop.type === 'teleport') {
       const spot = pick(freePositions());
       if (spot) {
         effect('dodge', robot, robot, 0.5);
@@ -187,24 +187,24 @@ export function createBattle(loadouts, {
       }
       return;
     }
-    if (drop.type === 'Arma' || drop.type === 'Ferramenta') {
-      const weapon = drop.type === 'Arma';
+    if (drop.type === 'weapon' || drop.type === 'tool') {
+      const weapon = drop.type === 'weapon';
       const catalog = weapon ? guns : utils;
       const items = weapon ? robot.guns : robot.utils;
       const missing = Object.keys(catalog).filter(key => !items.some(item => item.key === key));
       if (missing.length) {
         const key = pick(missing);
         items.push({ key, ready: 0, until: 0, expires: state.time + 10 });
-        log(robot, `Instalou ${catalog[key].name} por 10 s`);
+        log(robot, 'event.install', `${weapon ? 'guns' : 'utils'}.${key}.name`);
         return;
       }
     }
-    const { id, label } = pick(attributes);
+    const { id } = pick(attributes);
     const boosted = robot.baseStats[id] * 1.1;
     if (id === 'hp') robot.hp *= boosted / robot.stats.hp;
     robot.stats[id] = boosted;
     robot.boosts[id] = state.time + 5;
-    log(robot, `${label} +10% por 5 s`);
+    log(robot, 'event.boost', `attr.${id}.name`);
   }
 
   function chooseGoal(robot, enemy, range) {
@@ -217,17 +217,17 @@ export function createBattle(loadouts, {
     let intent;
     let goal;
     if (state.drops.length && !(nearCorner && span < 115)) {
-      intent = 'Disputando drop';
+      intent = 'drop';
       const cost = drop => distance(robot, drop) +
         (blocked(robot, drop, navigation.solids) ? 75 : 0) +
         Math.max(0, distance(robot, drop) - distance(enemy, drop)) * 0.45;
       goal = state.drops.reduce((best, drop) => cost(drop) < cost(best) ? drop : best);
     } else if (nearCorner || danger || state.time >= robot.maneuverAt || !robot.guns.length) {
-      intent = nearCorner || danger ? 'Recuando' : 'Reposicionando';
+      intent = nearCorner || danger ? 'retreat' : 'reposition';
       const score = point => {
         const gap = distance(point, enemy);
         const cover = blocked(point, enemy, arena.walls);
-        const desired = intent === 'Recuando' ? threat + 130 : range * 0.85;
+        const desired = intent === 'retreat' ? threat + 130 : range * 0.85;
         return -Math.abs(gap - desired) * 0.7 - Math.abs(distance(robot, point) - 165) +
           Math.min(140, point.x, WIDTH - point.x, point.y, HEIGHT - point.y) * 0.9 +
           (cover && danger ? 75 : 0) - (inMud(point, arena.mud) ? 55 : 0);
@@ -237,18 +237,18 @@ export function createBattle(loadouts, {
       goal = candidates.reduce((best, point) => score(point) > score(best) ? point : best);
       robot.maneuverAt = state.time + 3 + random() * 2;
     } else {
-      intent = 'Em combate';
+      intent = 'fight';
       goal = enemy;
     }
-    if (intent !== robot.intent) log(robot, intent);
+    if (intent !== robot.intent) log(robot, `intent.${intent}`);
     robot.intent = intent;
     robot.goal = goal;
     robot.nextPath = 0;
-    robot.thinkAt = state.time + (intent === 'Recuando' || intent === 'Reposicionando' ? 1.45 : 0.45);
+    robot.thinkAt = state.time + (intent === 'retreat' || intent === 'reposition' ? 1.45 : 0.45);
   }
 
-  function log(robot, action, damage = null) {
-    onEvent({ time: state.time, robot: robot?.id ?? null, action, damage });
+  function log(robot, action, item = null, damage = null) {
+    onEvent({ time: state.time, robot: robot?.id ?? null, action, item, damage });
   }
 
   function active(robot, key) {
@@ -264,14 +264,14 @@ export function createBattle(loadouts, {
     const [a, b] = robots;
     const winner = Math.abs(a.hp - b.hp) < 1e-8 ? null : a.hp > b.hp ? a.id : b.id;
     state.result = { winner, reason };
-    log(null, reason === 'knockout' ? 'Combate encerrado por nocaute' : 'Tempo de combate esgotado');
+    log(null, `event.${reason}`);
   }
 
-  function damage(attacker, defender, base, label) {
+  function damage(attacker, defender, base, action, item) {
     const power = (1 + attacker.stats.attack / 55) / (1 + defender.stats.defense / 70);
     const applied = Math.min(defender.hp, base * power * (active(defender, 'shield') ? 0.55 : 1));
     defender.hp = Math.max(0, defender.hp - applied);
-    log(attacker, label, applied);
+    log(attacker, action, item, applied);
     effect('hit', defender, defender, 0.40, { amount: applied });
     if (defender.hp <= 0) finish('knockout');
   }
@@ -300,7 +300,7 @@ export function createBattle(loadouts, {
 
   function walk(robot, enemy, dt) {
     const muddy = inMud(robot, state.mud);
-    if (muddy !== robot.muddy) log(robot, muddy ? 'Entrou na lama' : 'Saiu da lama');
+    if (muddy !== robot.muddy) log(robot, muddy ? 'event.enterMud' : 'event.leaveMud');
     robot.muddy = muddy;
 
     if (robot.pull) {
@@ -334,7 +334,7 @@ export function createBattle(loadouts, {
       (active(robot, 'nitro') ? 1.2 : 1) * (muddy ? 0.55 : 1);
     const moving = move(robot, target, speed * dt, enemy);
     turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
-    if (moving !== robot.moving) log(robot, moving ? 'Mudou de posição' : 'Firmou posição');
+    if (moving !== robot.moving) log(robot, moving ? 'event.move' : 'event.hold');
     robot.moving = moving;
   }
 
@@ -345,7 +345,7 @@ export function createBattle(loadouts, {
       const tool = utils[item.key];
       if (item.until && item.until <= state.time) {
         item.until = 0;
-        log(robot, `${tool.name} encerrou`);
+        log(robot, 'event.expireTool', `utils.${item.key}.name`);
       }
       const shouldUse = item.key === 'shield'
         ? (enemyRange >= span && !blocked(robot, enemy, state.walls)) || robot.burn
@@ -353,7 +353,7 @@ export function createBattle(loadouts, {
       if (shouldUse && item.ready <= state.time) {
         item.until = state.time + tool.duration;
         item.ready = state.time + tool.cooldown;
-        log(robot, `Ativou ${tool.name}`);
+        log(robot, 'event.activate', `utils.${item.key}.name`);
       }
     }
   }
@@ -371,7 +371,7 @@ export function createBattle(loadouts, {
       if (wall) {
         robot.pull = { target: contact, until: state.time + 0.6, stop: RADIUS };
         effect('tether', robot, contact, 0.5, { attached: robot.id });
-        log(robot, 'Usou o gancho na parede');
+        log(robot, 'event.hookWall');
         continue;
       }
       const aim = robot.stats.aim / (robot.stats.aim + 70);
@@ -379,7 +379,7 @@ export function createBattle(loadouts, {
       const roll = random();
       const accuracy = 0.78 + 0.21 * aim;
       if (roll >= accuracy) {
-        log(robot, `${weapon.name} errou o alvo`);
+        log(robot, 'event.miss', `guns.${item.key}.name`);
         continue;
       }
       if (roll >= accuracy * (1 - 0.72 * evasion * (1 - aim * 0.65))) {
@@ -389,26 +389,26 @@ export function createBattle(loadouts, {
         if (!move(enemy, { x: enemy.x + dx, y: enemy.y + dy }, 11, robot)) {
           move(enemy, { x: enemy.x - dx, y: enemy.y - dy }, 11, robot);
         }
-        log(robot, `${weapon.name} foi esquivado`);
-        log(enemy, `Desviou de ${weapon.name}`);
+        log(robot, 'event.evaded', `guns.${item.key}.name`);
+        log(enemy, 'event.dodge', `guns.${item.key}.name`);
         effect('dodge', enemy, enemy, 0.35);
         continue;
       }
       const critical = item.key === 'pistol' && random() < 0.18;
-      damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), weapon.name + (critical ? ' · crítico' : ''));
+      damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${item.key}.name`);
       if (item.key === 'flame') {
         enemy.burn = { from: robot, until: state.time + 3, next: enemy.burn?.next ?? state.time + 0.25 };
       }
       if (item.key === 'hook') {
         enemy.pull = { target: robot, until: state.time + 0.55, stop: RADIUS * 2 };
         effect('tether', robot, enemy, 0.5, { attached: robot.id, victim: enemy.id });
-        log(robot, 'Puxou o adversário com o gancho');
+        log(robot, 'event.hookEnemy');
       }
     }
   }
 
   let turn = random() < 0.5 ? 0 : 1;
-  log(null, 'Combate iniciado');
+  log(null, 'event.start');
 
   function step(dt = STEP) {
     if (state.result) return;
@@ -435,7 +435,7 @@ export function createBattle(loadouts, {
     for (const robot of order) {
       if (robot.burn && robot.burn.next <= state.time + 1e-8 && robot.burn.next <= robot.burn.until + 1e-8) {
         robot.burn.next += 0.25;
-        damage(robot.burn.from, robot, 1.15, 'Queimadura');
+        damage(robot.burn.from, robot, 1.15, 'event.burn');
         if (state.result) return;
       }
       if (robot.burn?.until <= state.time + 1e-8) robot.burn = null;

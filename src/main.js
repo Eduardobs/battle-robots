@@ -2,6 +2,7 @@ import { ATTRIBUTES_POINTS, ATTRIBUTES_BASE, BATTLE_TIME_IN_SECONDS, GUNS_QUANTI
 import { attributes, guns, utils, pilots, icon } from './catalog.js';
 import { createBattle, STEP } from './battle.js';
 import { createRenderer } from './render.js';
+import { language, locale, decimalSeparator, numberFormat, resolveLanguage, setLanguage, t } from './i18n.js';
 
 const byId = id => document.getElementById(id);
 const hangar = byId('hangar');
@@ -10,15 +11,19 @@ const bays = byId('bays');
 const events = byId('events');
 const result = byId('result');
 const render = createRenderer(byId('field'));
-const format = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
-const formatHP = value => value > 0 && value < 0.1 ? '<0,1' : format.format(value);
+const languageSelect = byId('language');
+const formatHP = value => value > 0 && value < 0.1
+  ? `<${numberFormat.format(0.1)}` : numberFormat.format(value);
+const hpAmount = value => t('hpAmount', { value, unit: t('hpUnit') });
+const pilotName = id => t(`pilot.${id}`);
 const timecode = seconds => [Math.floor(seconds / 60), Math.floor(seconds % 60)]
   .map(value => String(value).padStart(2, '0')).join(':');
-const strategies = {
-  advance: { name: 'Pressão', description: 'Avança para lutar a curta distância' },
-  distance: { name: 'Distância', description: 'Recua se o adversário se aproximar demais' },
-  flank: { name: 'Flanco', description: 'Circula o adversário enquanto ataca' },
-};
+const equipmentCatalogs = { guns, utils, strategy: { advance: {}, distance: {}, flank: {} } };
+let bayList = [];
+let scores = [];
+let battleState;
+const eventRows = [];
+let frameId = 0;
 
 const loadouts = pilots.map((_, id) => ({
   stats: Object.fromEntries(attributes.map(({ id }) => [id, ATTRIBUTES_BASE])),
@@ -29,57 +34,64 @@ const loadouts = pilots.map((_, id) => ({
   ready: false,
 }));
 
-function options(catalog) {
-  return Object.entries(catalog).map(([key, item]) =>
-    `<option value="${key}">${item.name}</option>`).join('');
+function options(kind) {
+  return Object.keys(equipmentCatalogs[kind]).map(key =>
+    `<option value="${key}">${t(`${kind}.${key}.name`)}</option>`).join('');
 }
 
-function equipment(id, kind, selection, catalog, name) {
+function equipment(id, kind, selection, name) {
   return selection.map((_, slot) => {
     const field = `${kind}-${id}-${slot}`;
-    const label = selection.length > 1 ? `${name} ${slot + 1}` : name;
+    const label = selection.length > 1 ? t('equipmentSlot', { name, number: slot + 1 }) : name;
     return `<label class="equipment" for="${field}">
       <span class="field-label">${label}</span>
-      <span class="select-wrap"><i></i><select id="${field}" data-kind="${kind}" data-slot="${slot}" aria-describedby="${field}-detail">${options(catalog)}</select>${icon('chevron')}</span>
+      <span class="select-wrap"><i></i><select id="${field}" data-kind="${kind}" data-slot="${slot}" aria-describedby="${field}-detail">${options(kind)}</select>${icon('chevron')}</span>
       <small id="${field}-detail"></small>
     </label>`;
   }).join('');
 }
 
-bays.innerHTML = pilots.map((pilot, id) => `
-  <article class="bay ${pilot.className}" aria-labelledby="pilot-${id}">
-    <div class="chassis">
-      <div class="pilot-title"><p class="eyebrow">JOGADOR ${id + 1}</p><h2 id="pilot-${id}">${pilot.name}</h2>
-      <span class="pilot-state"><i></i><span>Configurando</span></span></div>
-      <img class="robot-art" src="./assets/chassis.webp" alt="">
-      <span class="reticle" aria-hidden="true"></span>
-    </div>
-    <div class="bay-controls">
-      <div class="attributes-title"><h3>${icon('layers')} Atributos</h3><div class="budget"><output></output> pontos livres</div></div>
-      <div class="budget-meter"><span></span></div>
-      <fieldset>
-        <legend class="sr-only">Atributos de ${pilot.name}</legend>
-        <div class="attributes">${attributes.map(attr => `
-          <div class="attribute" data-attribute="${attr.id}">
-            <label for="${attr.id}-${id}" title="${attr.description}">${icon(attr.icon)} <span>${attr.label}</span></label>
-            <button type="button" data-delta="-1" aria-label="Diminuir ${attr.label}">−</button>
-            <input id="${attr.id}-${id}" type="number" inputmode="numeric" min="${ATTRIBUTES_BASE}" step="1" aria-label="${attr.label} de ${pilot.name}">
-            <button type="button" data-delta="1" aria-label="Aumentar ${attr.label}">+</button>
-          </div>`).join('')}</div>
-      </fieldset>
-      <fieldset class="equipment-grid">
-        <legend class="sr-only">Equipamento e comportamento de ${pilot.name}</legend>
-        ${equipment(id, 'guns', loadouts[id].guns, guns, 'Armamento')}
-        ${equipment(id, 'utils', loadouts[id].utils, utils, 'Ferramenta')}
-        ${equipment(id, 'strategy', [loadouts[id].strategy], strategies, 'Estratégia')}
-      </fieldset>
-      <button class="ready-button" type="button">${icon('check')} <span>Pronto</span></button>
-    </div>
-  </article>`).join('');
+function buildBays() {
+  bays.innerHTML = pilots.map((pilot, id) => {
+    const name = pilotName(id);
+    return `
+    <article class="bay ${pilot.className}" aria-labelledby="pilot-${id}">
+      <div class="chassis">
+        <div class="pilot-title"><p class="eyebrow">${t('player', { number: id + 1 })}</p><h2 id="pilot-${id}">${name}</h2>
+        <span class="pilot-state"><i></i><span></span></span></div>
+        <img class="robot-art" src="./assets/chassis.webp" alt="">
+        <span class="reticle" aria-hidden="true"></span>
+      </div>
+      <div class="bay-controls">
+        <div class="attributes-title"><h3>${icon('layers')} ${t('attributes')}</h3><div class="budget"><output></output> ${t('points')}</div></div>
+        <div class="budget-meter"><span></span></div>
+        <fieldset>
+          <legend class="sr-only">${t('attributeLegend', { name })}</legend>
+          <div class="attributes">${attributes.map(attr => {
+            const attribute = t(`attr.${attr.id}.name`);
+            return `
+            <div class="attribute" data-attribute="${attr.id}">
+              <label for="${attr.id}-${id}" title="${t(`attr.${attr.id}.description`)}">${icon(attr.icon)} <span>${attribute}</span></label>
+              <button type="button" data-delta="-1" aria-label="${t('decrease', { attribute })}">−</button>
+              <input id="${attr.id}-${id}" type="number" inputmode="numeric" min="${ATTRIBUTES_BASE}" step="1" aria-label="${t('attributeInput', { attribute, name })}">
+              <button type="button" data-delta="1" aria-label="${t('increase', { attribute })}">+</button>
+            </div>`;
+          }).join('')}</div>
+        </fieldset>
+        <fieldset class="equipment-grid">
+          <legend class="sr-only">${t('equipmentLegend', { name })}</legend>
+          ${equipment(id, 'guns', loadouts[id].guns, t('weapon'))}
+          ${equipment(id, 'utils', loadouts[id].utils, t('tool'))}
+          ${equipment(id, 'strategy', [loadouts[id].strategy], t('strategy'))}
+        </fieldset>
+        <button class="ready-button" type="button">${icon('check')} <span></span></button>
+      </div>
+    </article>`;
+  }).join('');
+  bayList = [...bays.children];
+  bayList.forEach(bindBay);
+}
 
-const bayList = [...bays.children];
-const equipmentCatalogs = { guns, utils, strategy: strategies };
-let frameId = 0;
 const remaining = loadout => ATTRIBUTES_POINTS - Object.values(loadout.stats)
   .reduce((total, value) => total + value - ATTRIBUTES_BASE, 0);
 
@@ -107,16 +119,16 @@ function refresh(id, editedInput) {
       option.disabled = option.value !== key && selected.includes(option.value);
     }
     select.parentElement.querySelector('i').innerHTML = icon(item.icon ?? 'target');
-    byId(`${select.id}-detail`).textContent = item.description;
+    byId(`${select.id}-detail`).textContent = t(`${kind}.${key}.description`);
   }
   bay.querySelectorAll('fieldset').forEach(fieldset => { fieldset.disabled = loadout.ready; });
   bay.classList.toggle('is-ready', loadout.ready);
-  bay.querySelector('.pilot-state span').textContent = loadout.ready ? 'Pronto' : 'Configurando';
+  bay.querySelector('.pilot-state span').textContent = t(loadout.ready ? 'ready' : 'configuring');
   const ready = bay.querySelector('.ready-button');
   ready.setAttribute('aria-pressed', String(loadout.ready));
-  ready.querySelector('span').textContent = loadout.ready ? 'Editar configuração' : 'Pronto';
+  ready.querySelector('span').textContent = t(loadout.ready ? 'edit' : 'ready');
   const count = loadouts.filter(entry => entry.ready).length;
-  byId('ready-status').textContent = `${count}/2 jogadores prontos · A batalha começa após as duas confirmações.`;
+  byId('ready-status').textContent = t('readyStatus', { count });
 }
 
 function setAttribute(id, key, requested, editedInput) {
@@ -127,7 +139,7 @@ function setAttribute(id, key, requested, editedInput) {
   refresh(id, editedInput);
 }
 
-bayList.forEach((bay, id) => {
+function bindBay(bay, id) {
   const loadout = loadouts[id];
   bay.querySelectorAll('.attribute').forEach(row => {
     const key = row.dataset.attribute;
@@ -151,10 +163,9 @@ bayList.forEach((bay, id) => {
     if (loadouts.every(entry => entry.ready)) start();
   });
   refresh(id);
-});
+}
 
 document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
-byId('match-length').textContent = `${timecode(BATTLE_TIME_IN_SECONDS)} de combate`;
 
 function setStage(inBattle) {
   hangar.hidden = inBattle;
@@ -165,71 +176,82 @@ function setStage(inBattle) {
   window.scrollTo(0, 0);
 }
 
-function appendEvent({ time, robot, action, damage }) {
+function updateEvent(row, { time, robot, action, item, damage }) {
+  const values = [
+    `${timecode(time)}${decimalSeparator}${String(Math.floor((time % 1) * 100)).padStart(2, '0')}`,
+    robot === null ? t('arena') : pilotName(robot),
+    t(action, item ? { item: t(item) } : {}),
+    damage === null ? '—' : hpAmount(`−${formatHP(damage)}`),
+  ];
+  values.forEach((value, index) => { row.children[index].textContent = value; });
+}
+
+function appendEvent(event) {
   const follow = events.scrollTop + events.clientHeight >= events.scrollHeight - 24;
   const row = document.createElement('li');
-  const pilot = pilots[robot];
-  for (const [value, className] of [
-    [`${timecode(time)}.${String(Math.floor((time % 1) * 100)).padStart(2, '0')}`, 'event-time'],
-    [pilot?.name ?? 'Arena', pilot?.className ?? ''],
-    [action, 'event-action'],
-    [damage === null ? '—' : `−${formatHP(damage)} HP`, 'event-damage'],
-  ]) {
+  for (const className of ['event-time', pilots[event.robot]?.className ?? '', 'event-action', 'event-damage']) {
     const cell = document.createElement('span');
     cell.className = className;
-    cell.textContent = value;
     row.append(cell);
   }
+  updateEvent(row, event);
+  eventRows.push({ row, event });
   events.append(row);
   if (follow) events.scrollTop = events.scrollHeight;
 }
 
-function scorePanel(pilot) {
-  return `<div class="score ${pilot.className}"><div><strong>${pilot.name}</strong><span class="score-hp"></span></div>
+function scorePanel(pilot, id) {
+  return `<div class="score ${pilot.className}"><div><strong>${pilotName(id)}</strong><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div><div class="score-tools"></div></div>`;
 }
 
-byId('scoreboard').innerHTML = `${scorePanel(pilots[0])}
-  <div class="timer"><span class="eyebrow">TEMPO RESTANTE</span><strong id="countdown"></strong></div>
-  ${scorePanel(pilots[1])}`;
-const scores = [...document.querySelectorAll('.score')].map(score => ({
-  hp: score.querySelector('.score-hp'), bar: score.querySelector('.hp-track i'), tools: score.querySelector('.score-tools'),
-}));
+function buildScoreboard() {
+  byId('scoreboard').innerHTML = `${scorePanel(pilots[0], 0)}
+    <div class="timer"><span class="eyebrow">${t('remainingTime')}</span><strong id="countdown"></strong></div>
+    ${scorePanel(pilots[1], 1)}`;
+  scores = [...document.querySelectorAll('.score')].map(score => ({
+    hp: score.querySelector('.score-hp'), bar: score.querySelector('.hp-track i'), tools: score.querySelector('.score-tools'),
+  }));
+}
 
 function updateScore(state) {
   byId('countdown').textContent = timecode(Math.ceil(state.duration - state.time));
   state.robots.forEach((robot, id) => {
     const score = scores[id];
-    score.hp.textContent = `${formatHP(robot.hp)} / ${format.format(robot.stats.hp)} HP`;
+    score.hp.textContent = t('hpScore', {
+      current: formatHP(robot.hp), max: numberFormat.format(robot.stats.hp), unit: t('hpUnit'),
+    });
     score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
     const tools = [
-      robot.intent,
-      ...robot.utils.filter(item => item.until > state.time || item.expires).map(item => utils[item.key].name),
-      ...robot.guns.filter(item => item.expires).map(item => guns[item.key].name),
-      ...attributes.filter(attr => robot.boosts[attr.id]).map(attr => `${attr.label} +10%`),
+      robot.intent && t(`intent.${robot.intent}`),
+      ...robot.utils.filter(item => item.until > state.time || item.expires).map(item => t(`utils.${item.key}.name`)),
+      ...robot.guns.filter(item => item.expires).map(item => t(`guns.${item.key}.name`)),
+      ...attributes.filter(attr => robot.boosts[attr.id]).map(attr => t('boost', { item: t(`attr.${attr.id}.name`) })),
     ].filter(Boolean).join(' · ');
     if (score.tools.textContent !== tools) score.tools.textContent = tools;
   });
 }
 
-function showResult(state) {
+function showResult(state, focus = true) {
   const { winner, reason } = state.result;
-  byId('battle-status').textContent = 'Combate encerrado';
-  byId('result-reason').textContent = reason === 'knockout' ? 'NOCAUTE' : 'TEMPO ESGOTADO';
-  byId('result-title').textContent = winner === null ? 'Empate' : `${pilots[winner].name} venceu`;
+  byId('battle-status').textContent = t('finished');
+  byId('result-reason').textContent = t(reason);
+  byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: pilotName(winner) });
   byId('result-score').textContent = state.robots
-    .map((robot, id) => `${pilots[id].name} ${formatHP(robot.hp)} HP`).join(' · ');
+    .map((robot, id) => t('pilotScore', { name: pilotName(id), hp: hpAmount(formatHP(robot.hp)) })).join(' · ');
   result.hidden = false;
-  byId('result-title').focus({ preventScroll: true });
+  if (focus) byId('result-title').focus({ preventScroll: true });
 }
 
 function start() {
+  eventRows.length = 0;
   events.replaceChildren();
   result.hidden = true;
-  byId('battle-status').textContent = 'Em combate';
+  byId('battle-status').textContent = t('intent.fight');
   setStage(true);
   byId('arena-title').focus({ preventScroll: true });
   const battle = createBattle(loadouts, { onEvent: appendEvent });
+  battleState = battle.state;
   let previous = performance.now();
   let elapsed = 0;
   function frame(timestamp) {
@@ -249,9 +271,50 @@ function start() {
 
 byId('reset').addEventListener('click', () => {
   cancelAnimationFrame(frameId);
+  battleState = undefined;
+  eventRows.length = 0;
+  events.replaceChildren();
   loadouts.forEach(loadout => { loadout.ready = false; });
   bayList.forEach((_, id) => refresh(id));
   setStage(false);
   byId('hangar-title').setAttribute('tabindex', '-1');
   byId('hangar-title').focus({ preventScroll: true });
+});
+
+function applyLanguage(code) {
+  setLanguage(code);
+  document.documentElement.lang = locale;
+  languageSelect.value = language;
+  document.querySelectorAll('[data-t]').forEach(element => { element.textContent = t(element.dataset.t); });
+  document.querySelectorAll('[data-t-label]').forEach(element => {
+    element.setAttribute('aria-label', t(element.dataset.tLabel));
+  });
+  document.querySelector('meta[name="description"]').content = t('description');
+  languageSelect.setAttribute('aria-label', t('language'));
+  byId('match-length').textContent = t('matchLength', { time: timecode(BATTLE_TIME_IN_SECONDS) });
+  byId('battle-status').textContent = t('intent.fight');
+  buildBays();
+  buildScoreboard();
+  eventRows.forEach(({ row, event }) => updateEvent(row, event));
+  if (battleState) {
+    render(battleState);
+    updateScore(battleState);
+    if (battleState.result) showResult(battleState, false);
+  }
+}
+
+let preferredLanguage;
+try {
+  preferredLanguage = localStorage.getItem('battle-robots-language');
+} catch {
+  // Language selection remains available when storage is blocked.
+}
+applyLanguage(resolveLanguage([preferredLanguage, ...(navigator.languages ?? [navigator.language])]));
+languageSelect.addEventListener('change', () => {
+  applyLanguage(languageSelect.value);
+  try {
+    localStorage.setItem('battle-robots-language', language);
+  } catch {
+    // Keep the selected language for the current page.
+  }
 });
