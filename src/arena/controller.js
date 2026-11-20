@@ -32,9 +32,9 @@ export function createArenaController({ onStart, onReset }) {
   function showResult(state, focus = true) {
     const { winner, reason } = state.result;
     byId('result-reason').textContent = t(reason);
-    byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: pilots[winner].name });
+    byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: t(pilots[winner].nameKey) });
     byId('result-score').textContent = state.robots
-      .map((robot, id) => t('pilotScore', { name: pilots[id].name, hp: hpAmount(formatHP(robot.hp)) })).join(' · ');
+      .map((robot, id) => t('pilotScore', { name: t(pilots[id].nameKey), hp: hpAmount(formatHP(robot.hp)) })).join(' · ');
     result.hidden = false;
     if (focus) byId('result-title').focus({ preventScroll: true });
   }
@@ -122,10 +122,10 @@ export function createArenaController({ onStart, onReset }) {
     updateBattleControls();
     if (!battle) return;
     buildScoreboard();
-    translateEvents();
     const { state } = battle;
     render(state);
     updateScore(state);
+    translateEvents();
     if (state.result) showResult(state, false);
   }
 

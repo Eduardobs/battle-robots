@@ -40,6 +40,7 @@ function applyLanguage(code) {
   document.querySelectorAll('[data-t-label]').forEach(element => {
     element.setAttribute('aria-label', t(element.dataset.tLabel));
   });
+  document.querySelectorAll('[data-t-title]').forEach(element => { element.title = t(element.dataset.tTitle); });
   document.querySelector('meta[name="description"]').content = t('description');
   languageSelect.setAttribute('aria-label', t('language'));
   byId('match-length').textContent = t('matchLength', { time: timecode(BATTLE_TIME_IN_SECONDS) });

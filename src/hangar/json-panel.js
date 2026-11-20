@@ -6,7 +6,11 @@ export function bindConfiguration(bay, id, loadout, onApply) {
   const panel = bay.querySelector('.loadout-json');
   const input = panel.querySelector('textarea');
   const fileInput = panel.querySelector('input');
-  const status = key => { panel.querySelector('.json-status').textContent = t(key); };
+  const status = key => {
+    const message = panel.querySelector('.json-status');
+    message.dataset.message = key;
+    message.textContent = t(key);
+  };
   const json = () => JSON.stringify(configuration(loadout), null, 2);
   let importRequest = 0;
 
@@ -32,7 +36,7 @@ export function bindConfiguration(bay, id, loadout, onApply) {
     const url = URL.createObjectURL(new Blob([json()], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `robot-${pilots[id].name.toLowerCase()}.json`;
+    link.download = `robot-${t(pilots[id].nameKey).toLowerCase()}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });

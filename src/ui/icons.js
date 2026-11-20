@@ -1,4 +1,13 @@
 const icons = {
+  mark: '<path fill="currentColor" stroke="none" d="M3 19 10 4h5L8 19zm8 0 7-15h4l-7 15z"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
+  hangar: '<path d="m3 8 9-5 9 5v12H3zm4 12v-8h10v8M7 15h10"/>',
+  code: '<path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/>',
+  settings: '<path d="M3 6h7m4 0h7M3 12h12m4 0h2M3 18h2m4 0h12"/><circle cx="12" cy="6" r="2"/><circle cx="17" cy="12" r="2"/><circle cx="7" cy="18" r="2"/>',
+  random: '<path d="M3 6h3c5 0 7 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 4-3 5-5m2-4c2-2 3-3 5-3h3m-4-4 4 4-4 4"/>',
+  reset: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
+  arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+  trophy: '<path d="M7 3h10v5c0 5-2 7-5 7s-5-2-5-7V3zm0 2H3v2c0 3 2 5 5 5m9-7h4v2c0 3-2 5-5 5m-4 3v5m-5 1h10"/>',
   snowflake: '<path d="M12 2v20M3.3 7l17.4 10m0-10L3.3 17M9 4l3 3 3-3m-6 16 3-3 3 3"/>',
   swords: '<path d="m14 17 3 3m-4-2 5-5m-5 0L4 4h5l8 8M7 17l-3 3m2-7 5 5m1-8 7-6h2l-1 4-6 6"/>',
   heart: '<path d="M20.8 8.5c0 4.6-8.8 9.5-8.8 9.5S3.2 13.1 3.2 8.5a4.3 4.3 0 0 1 8.8-1 4.3 4.3 0 0 1 8.8 1Z"/>',

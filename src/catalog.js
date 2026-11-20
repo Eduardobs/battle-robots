@@ -28,8 +28,8 @@ export const utils = {
 };
 
 export const pilots = [
-  { name: 'Red', color: '#ff8b54', ink: '#ffb183', className: 'orange' },
-  { name: 'Blue', color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
+  { nameKey: 'pilot.red', color: '#ff8b54', ink: '#ffb183', className: 'orange' },
+  { nameKey: 'pilot.blue', color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
 ];
 
 

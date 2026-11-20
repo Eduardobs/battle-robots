@@ -65,15 +65,15 @@ export function createRenderer(canvas) {
   }
 
   function drawGround(state) {
-    rect(ground, '#171a1c', 0, 0, WIDTH, HEIGHT);
+    rect(ground, '#14202c', 0, 0, WIDTH, HEIGHT);
     for (let x = 24; x < WIDTH; x += 24) {
-      line(ground, x % 96 ? '#202528' : '#2a3033', 1, { x, y: 0 }, { x, y: HEIGHT });
+      line(ground, x % 96 ? '#1d2d3b' : '#2a3e50', 1, { x, y: 0 }, { x, y: HEIGHT });
     }
     for (let y = 24; y < HEIGHT; y += 24) {
-      line(ground, y % 96 ? '#202528' : '#2a3033', 1, { x: 0, y }, { x: WIDTH, y });
+      line(ground, y % 96 ? '#1d2d3b' : '#2a3e50', 1, { x: 0, y }, { x: WIDTH, y });
     }
-    circle(ground, '#333b37', WIDTH / 2, HEIGHT / 2, 95, 2);
-    circle(ground, '#292f2c', WIDTH / 2, HEIGHT / 2, 79, 1);
+    circle(ground, '#354956', WIDTH / 2, HEIGHT / 2, 95, 2);
+    circle(ground, '#243543', WIDTH / 2, HEIGHT / 2, 79, 1);
     for (const [id, x] of [71, WIDTH - 71].entries()) {
       circle(ground, pilots[id].color + '55', x, HEIGHT / 2, 32, 2);
       circle(ground, pilots[id].color + '22', x, HEIGHT / 2, 42, 1);

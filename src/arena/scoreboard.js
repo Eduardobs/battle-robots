@@ -9,7 +9,7 @@ let displayedSeconds;
 
 function scorePanel(pilot, id) {
   const stats = attributes.map(attr => `<div><dt>${icon(attr.icon)} ${t(`attr.${attr.id}.name`)}</dt><dd></dd></div>`).join('');
-  return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${pilot.name}</h2><span class="score-hp"></span></div>
+  return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div><div class="score-tools"></div>
     <div class="robot-details" id="robot-details-${id}">
       <ul class="battle-statuses"><li></li><li>${t('status.locked')}</li><li>${t('status.frozen')}</li></ul>
@@ -22,7 +22,7 @@ function scorePanel(pilot, id) {
 
 export function buildScoreboard() {
   document.getElementById('scoreboard').innerHTML = `${scorePanel(pilots[0], 0)}
-    <div class="timer"><span class="eyebrow">${t('remainingTime')}</span><strong id="countdown"></strong></div>
+    <div class="timer">${icon('clock')}<span class="eyebrow">${t('remainingTime')}</span><strong id="countdown"></strong></div>
     ${scorePanel(pilots[1], 1)}`;
   countdown = document.getElementById('countdown');
   displayedSeconds = undefined;
@@ -41,7 +41,7 @@ function updateEquipment(group, items, kind) {
   group.list.innerHTML = items.map(({ key, expires }) => `<li>
     ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
       ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>${kind === 'guns'
-      ? '<span class="weapon-cooldown"></span>' : ''}</li>`).join('') || '<li>—</li>';
+      ? `<span class="weapon-cooldown" title="${t('cooldownTip')}"></span>` : ''}</li>`).join('') || '<li>—</li>';
   if (kind === 'guns') group.counters = group.list.querySelectorAll('.weapon-cooldown');
 }
 
