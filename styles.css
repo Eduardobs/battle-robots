@@ -137,6 +137,35 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .select-wrap select { appearance: none; width: 100%; min-height: 38px; border: 1px solid var(--border); background: var(--inset); color: var(--text); padding: 5px 25px 5px 32px; font-size: .875rem; }
 .select-wrap .icon { width: 16px; height: 16px; }
 .equipment small { color: var(--muted); font-size: .75rem; line-height: 1.35; }
+.loadout-json { margin-top: 14px; font-size: 0.85rem; }
+.loadout-json summary { width: fit-content; cursor: pointer; color: var(--accent); }
+.json-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.json-actions button, .json-file {
+  position: relative;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  background: var(--inset);
+  color: var(--text);
+  font: inherit;
+}
+.json-actions button:enabled:hover, .json-file:hover { border-color: var(--accent); }
+.json-file input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.json-file:focus-within { outline: 2px solid var(--lime); outline-offset: 3px; }
+.json-actions button:disabled, .json-file:has(input:disabled) { opacity: 0.55; }
+.json-file input:disabled { cursor: default; }
+.loadout-json textarea {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  background: var(--inset);
+  color: var(--text);
+  font: 0.8rem var(--mono);
+}
+.json-status { color: var(--muted); overflow-wrap: anywhere; }
+
 .ready-button {
   display: flex;
   justify-content: center;

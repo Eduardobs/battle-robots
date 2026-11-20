@@ -34,6 +34,50 @@ const loadouts = pilots.map((_, id) => ({
   ready: false,
 }));
 
+const storageKey = 'battle-robots-loadouts';
+const remaining = loadout => ATTRIBUTES_POINTS - Object.values(loadout.stats)
+  .reduce((total, value) => total + value - ATTRIBUTES_BASE, 0);
+
+
+function configuration({ stats, guns, utils, strategy }) {
+  return { stats, guns, utils, strategy };
+}
+
+function validateConfiguration(value) {
+  if (!value || typeof value !== 'object') return;
+  const { stats, guns, utils, strategy } = value;
+  if (!stats || typeof stats !== 'object') return;
+  const entries = attributes.map(({ id }) => [id, stats[id]]);
+  if (entries.some(([, points]) => !Number.isInteger(points) || points < ATTRIBUTES_BASE)) return;
+  const config = { stats: Object.fromEntries(entries), guns, utils, strategy };
+  if (remaining(config) < 0 || typeof strategy !== 'string' ||
+      !Object.hasOwn(equipmentCatalogs.strategy, strategy)) return;
+  for (const [kind, count] of [['guns', GUNS_QUANTITY], ['utils', UTILS_QUANTITY]]) {
+    const items = config[kind];
+    if (!Array.isArray(items) || items.length !== count || new Set(items).size !== count ||
+        items.some(item => typeof item !== 'string' || !Object.hasOwn(equipmentCatalogs[kind], item))) return;
+  }
+  return config;
+}
+
+try {
+  const saved = JSON.parse(localStorage.getItem(storageKey));
+  if (Array.isArray(saved)) loadouts.forEach((loadout, id) => {
+    const config = validateConfiguration(saved[id]);
+    if (config) Object.assign(loadout, config);
+  });
+} catch {
+  // Use defaults when storage is unavailable or unreadable.
+}
+
+function saveConfigurations() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(loadouts.map(configuration)));
+  } catch {
+    // Changes remain available for the current page.
+  }
+}
+
 function options(kind) {
   return Object.keys(equipmentCatalogs[kind]).map(key =>
     `<option value="${key}">${t(`${kind}.${key}.name`)}</option>`).join('');
@@ -84,6 +128,22 @@ function buildBays() {
           ${equipment(id, 'utils', loadouts[id].utils, t('tool'))}
           ${equipment(id, 'strategy', [loadouts[id].strategy], t('strategy'))}
         </fieldset>
+        <details class="loadout-json">
+          <summary>${t('loadoutJson')}</summary>
+          <div class="json-actions">
+            <button type="button" data-json="download">${t('downloadJson')}</button>
+            <button type="button" data-json="copy">${t('copyJson')}</button>
+          </div>
+          <label for="loadout-json-${id}">${t('jsonInput')}</label>
+          <textarea id="loadout-json-${id}" rows="4" spellcheck="false"></textarea>
+          <div class="json-actions">
+            <button type="button" data-json="apply">${t('applyJson')}</button>
+            <label class="json-file">${t('openJson')}
+              <input type="file" accept=".json,application/json" aria-label="${t('openJson')}">
+            </label>
+          </div>
+          <p class="json-status" role="status"></p>
+        </details>
         <button class="ready-button" type="button">${icon('check')} <span></span></button>
       </div>
     </article>`;
@@ -91,9 +151,6 @@ function buildBays() {
   bayList = [...bays.children];
   bayList.forEach(bindBay);
 }
-
-const remaining = loadout => ATTRIBUTES_POINTS - Object.values(loadout.stats)
-  .reduce((total, value) => total + value - ATTRIBUTES_BASE, 0);
 
 function refresh(id, editedInput) {
   const bay = bayList[id];
@@ -122,6 +179,9 @@ function refresh(id, editedInput) {
     byId(`${select.id}-detail`).textContent = t(`${kind}.${key}.description`);
   }
   bay.querySelectorAll('fieldset').forEach(fieldset => { fieldset.disabled = loadout.ready; });
+  for (const control of bay.querySelectorAll('[data-json="apply"], .json-file input')) {
+    control.disabled = loadout.ready;
+  }
   bay.classList.toggle('is-ready', loadout.ready);
   bay.querySelector('.pilot-state span').textContent = t(loadout.ready ? 'ready' : 'configuring');
   const ready = bay.querySelector('.ready-button');
@@ -136,7 +196,74 @@ function setAttribute(id, key, requested, editedInput) {
   if (loadout.ready) return;
   const max = loadout.stats[key] + remaining(loadout);
   loadout.stats[key] = Math.max(ATTRIBUTES_BASE, Math.min(max, Math.trunc(requested)));
+  saveConfigurations();
   refresh(id, editedInput);
+}
+
+function bindConfiguration(bay, id) {
+  const loadout = loadouts[id];
+  const panel = bay.querySelector('.loadout-json');
+  const input = panel.querySelector('textarea');
+  const fileInput = panel.querySelector('input');
+  const status = key => { panel.querySelector('.json-status').textContent = t(key); };
+  const json = () => JSON.stringify(configuration(loadout), null, 2);
+  let importRequest = 0;
+
+  function apply(source) {
+    if (loadout.ready) return;
+    let config;
+    try {
+      config = validateConfiguration(JSON.parse(source));
+    } catch {
+      // Invalid JSON leaves the current configuration intact.
+    }
+    if (!config) {
+      status('invalidJson');
+      return;
+    }
+    Object.assign(loadout, config);
+    saveConfigurations();
+    refresh(id);
+    input.value = json();
+    status('loadedJson');
+  }
+
+  panel.querySelector('[data-json="download"]').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([json()], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `robot-${pilots[id].name.toLowerCase()}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  panel.querySelector('[data-json="copy"]').addEventListener('click', async () => {
+    const source = json();
+    try {
+      await navigator.clipboard.writeText(source);
+      status('copiedJson');
+    } catch {
+      input.value = source;
+      input.focus();
+      input.select();
+      status('manualCopyJson');
+    }
+  });
+  panel.querySelector('[data-json="apply"]').addEventListener('click', () => {
+    importRequest++;
+    apply(input.value);
+  });
+  fileInput.addEventListener('change', async () => {
+    const [file] = fileInput.files;
+    if (!file) return;
+    fileInput.value = '';
+    const request = ++importRequest;
+    try {
+      const source = await file.text();
+      if (request === importRequest && panel.isConnected) apply(source);
+    } catch {
+      if (request === importRequest) status('invalidJson');
+    }
+  });
 }
 
 function bindBay(bay, id) {
@@ -155,8 +282,10 @@ function bindBay(bay, id) {
     const { kind, slot } = select.dataset;
     if (kind === 'strategy') loadout.strategy = select.value;
     else loadout[kind][slot] = select.value;
+    saveConfigurations();
     refresh(id);
   }));
+  bindConfiguration(bay, id);
   bay.querySelector('.ready-button').addEventListener('click', () => {
     loadout.ready = !loadout.ready;
     refresh(id);
