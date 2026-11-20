@@ -131,9 +131,9 @@ function buildBays() {
             return `
             <div class="attribute" data-attribute="${attr.id}">
               <label for="${attr.id}-${id}" title="${t(`attr.${attr.id}.description`)}">${icon(attr.icon)} <span>${attribute}</span></label>
-              <button type="button" data-delta="-1" aria-label="${t('decrease', { attribute })}">−</button>
-              <input id="${attr.id}-${id}" type="number" inputmode="numeric" min="${ATTRIBUTES_BASE}" step="1" aria-label="${t('attributeInput', { attribute, name })}">
-              <button type="button" data-delta="1" aria-label="${t('increase', { attribute })}">+</button>
+              <span class="attribute-value" aria-hidden="true"></span>
+              <input id="${attr.id}-${id}" type="range" min="${ATTRIBUTES_BASE}" step="1" aria-label="${t('attributeInput', { attribute, name })}">
+              <div class="attribute-limits" aria-hidden="true"><span>${numberFormat.format(ATTRIBUTES_BASE)}</span><span class="attribute-max"></span></div>
             </div>`;
           }).join('')}</div>
           <div class="attribute-actions">
@@ -171,7 +171,7 @@ function buildBays() {
   bayList.forEach(bindBay);
 }
 
-function refresh(id, editedInput) {
+function refresh(id) {
   const bay = bayList[id];
   const loadout = loadouts[id];
   const rest = remaining(loadout);
@@ -182,10 +182,14 @@ function refresh(id, editedInput) {
   for (const row of bay.querySelectorAll('.attribute')) {
     const value = loadout.stats[row.dataset.attribute];
     const input = row.querySelector('input');
-    if (input !== editedInput) input.value = value;
-    input.max = value + rest;
-    row.querySelector('[data-delta="-1"]').disabled = value <= ATTRIBUTES_BASE;
-    row.querySelector('[data-delta="1"]').disabled = rest <= 0;
+    const max = value + rest;
+    const range = max - ATTRIBUTES_BASE;
+    input.max = max;
+    input.value = value;
+    input.disabled = range === 0;
+    input.style.setProperty('--fill', `${range ? (value - ATTRIBUTES_BASE) / range * 100 : 0}%`);
+    row.querySelector('.attribute-value').textContent = numberFormat.format(value);
+    row.querySelector('.attribute-max').textContent = numberFormat.format(max);
   }
   for (const select of bay.querySelectorAll('select')) {
     const { kind, slot } = select.dataset;
@@ -212,13 +216,13 @@ function refresh(id, editedInput) {
   byId('ready-status').textContent = t('readyStatus', { count });
 }
 
-function setAttribute(id, key, requested, editedInput) {
+function setAttribute(id, key, requested) {
   const loadout = loadouts[id];
   if (loadout.ready) return;
   const max = loadout.stats[key] + remaining(loadout);
   loadout.stats[key] = Math.max(ATTRIBUTES_BASE, Math.min(max, Math.trunc(requested)));
   saveConfigurations();
-  refresh(id, editedInput);
+  refresh(id);
 }
 
 function bindConfiguration(bay, id) {
@@ -292,12 +296,7 @@ function bindBay(bay, id) {
   bay.querySelectorAll('.attribute').forEach(row => {
     const key = row.dataset.attribute;
     const input = row.querySelector('input');
-    input.addEventListener('input', () => {
-      if (Number.isFinite(input.valueAsNumber)) setAttribute(id, key, input.valueAsNumber, input);
-    });
-    input.addEventListener('change', () => { input.value = loadout.stats[key]; });
-    row.querySelectorAll('button').forEach(button => button.addEventListener('click', () =>
-      setAttribute(id, key, loadout.stats[key] + Number(button.dataset.delta))));
+    input.addEventListener('input', () => setAttribute(id, key, input.valueAsNumber));
   });
   bay.querySelector('[data-attributes="clear"]').addEventListener('click', () => {
     for (const { id: key } of attributes) loadout.stats[key] = ATTRIBUTES_BASE;

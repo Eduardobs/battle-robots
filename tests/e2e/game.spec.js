@@ -2,9 +2,11 @@ import { expect, test } from '@playwright/test';
 import { ATTRIBUTES_BASE, ATTRIBUTES_POINTS, GUNS_QUANTITY, UTILS_QUANTITY } from '../../config.js';
 
 test('o hangar aplica o orçamento de atributos e restaura as escolhas após recarregar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const bay = page.locator('.bay').first();
-  const hp = bay.locator('#hp-0');
+  const hp = bay.getByRole('slider', { name: /^HP\b/ });
+  const defense = bay.locator('#defense-0');
   const strategy = bay.locator('#strategy-0-0');
   const budget = bay.locator('.budget output');
 
@@ -12,15 +14,33 @@ test('o hangar aplica o orçamento de atributos e restaura as escolhas após rec
   await expect(budget).toHaveText(String(ATTRIBUTES_POINTS));
 
   const maxHP = ATTRIBUTES_BASE + ATTRIBUTES_POINTS;
-  await hp.fill(String(maxHP + 100));
-  await hp.press('Tab');
+  const track = await hp.boundingBox();
+  await page.mouse.move(track.x + 7, track.y + track.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(track.x + track.width / 2, track.y + track.height / 2, { steps: 5 });
+  await page.mouse.up();
+  const draggedHP = Number(await hp.inputValue());
+  expect(draggedHP).toBeGreaterThan(ATTRIBUTES_BASE);
+  expect(draggedHP).toBeLessThan(maxHP);
+  await expect(budget).toHaveText(String(maxHP - draggedHP));
+
+  await hp.press('End');
   await expect(hp).toHaveValue(String(maxHP));
+  await expect(bay.locator('[data-attribute="hp"] .attribute-value')).toHaveText(maxHP.toLocaleString('en-US'));
   await expect(budget).toHaveText('0');
-  await expect(bay.locator('[data-delta="1"]').first()).toBeDisabled();
+  await expect(defense).toHaveAttribute('max', String(ATTRIBUTES_BASE));
+  await expect(defense).toBeDisabled();
+  await hp.press('ArrowLeft');
+  await expect(budget).toHaveText('1');
+  await expect(defense).toBeEnabled();
+  await defense.press('ArrowRight');
+  await expect(budget).toHaveText('0');
+  await expect(hp).toHaveAttribute('max', String(maxHP - 1));
   await strategy.selectOption('flank');
 
   await page.reload();
-  await expect(hp).toHaveValue(String(maxHP));
+  await expect(hp).toHaveValue(String(maxHP - 1));
+  await expect(defense).toHaveValue(String(ATTRIBUTES_BASE + 1));
   await expect(strategy).toHaveValue('flank');
   await expect(budget).toHaveText('0');
   await expect(bay.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled();
@@ -37,8 +57,8 @@ test('o hangar distribui e limpa os pontos de cada robô', async ({ page }) => {
   const hp = ATTRIBUTES_BASE + 1;
 
   await expect(clear).toBeDisabled();
-  await firstHP.fill(String(hp));
-  await secondHP.fill(String(hp));
+  await firstHP.press('ArrowRight');
+  await secondHP.press('ArrowRight');
   await randomize.click();
   await expect(first.locator('.budget output')).toHaveText('0');
   await expect(randomize).toBeDisabled();
@@ -51,7 +71,9 @@ test('o hangar distribui e limpa os pontos de cada robô', async ({ page }) => {
   await expect(first.locator('.budget output')).toHaveText('0');
   await first.getByRole('button', { name: 'Ready', exact: true }).click();
   await expect(clear).toBeDisabled();
+  await expect(firstHP).toBeDisabled();
   await first.getByRole('button', { name: 'Edit loadout', exact: true }).click();
+  await expect(firstHP).toBeEnabled();
   await clear.click();
   await expect(first.locator('.budget output')).toHaveText(String(ATTRIBUTES_POINTS));
   await expect(secondHP).toHaveValue(String(hp));
