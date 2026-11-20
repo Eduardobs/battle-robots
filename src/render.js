@@ -1,0 +1,229 @@
+import { WIDTH, HEIGHT, EDGE, RADIUS } from './battle.js';
+import { pilots } from './catalog.js';
+
+export function createRenderer(canvas) {
+  const ctx = canvas.getContext('2d');
+  const backdrop = document.createElement('canvas');
+  backdrop.width = WIDTH;
+  backdrop.height = HEIGHT;
+  const ground = backdrop.getContext('2d');
+  let paintedState;
+
+  const rect = (pen, fill, x, y, w, h) => {
+    pen.fillStyle = fill;
+    pen.fillRect(x, y, w, h);
+  };
+  const line = (pen, color, width, a, b) => {
+    pen.strokeStyle = color;
+    pen.lineWidth = width;
+    pen.beginPath();
+    pen.moveTo(a.x, a.y);
+    pen.lineTo(b.x, b.y);
+    pen.stroke();
+  };
+  const circle = (pen, color, x, y, radius, width = 0) => {
+    pen.beginPath();
+    pen.arc(x, y, radius, 0, Math.PI * 2);
+    if (width) {
+      pen.strokeStyle = color;
+      pen.lineWidth = width;
+      pen.stroke();
+    } else {
+      pen.fillStyle = color;
+      pen.fill();
+    }
+  };
+
+  function drawGround(state) {
+    rect(ground, '#171a1c', 0, 0, WIDTH, HEIGHT);
+    for (let x = 24; x < WIDTH; x += 24) {
+      line(ground, x % 96 ? '#202528' : '#2a3033', 1, { x, y: 0 }, { x, y: HEIGHT });
+    }
+    for (let y = 24; y < HEIGHT; y += 24) {
+      line(ground, y % 96 ? '#202528' : '#2a3033', 1, { x: 0, y }, { x: WIDTH, y });
+    }
+    circle(ground, '#333b37', WIDTH / 2, HEIGHT / 2, 95, 2);
+    circle(ground, '#292f2c', WIDTH / 2, HEIGHT / 2, 79, 1);
+    for (const [id, x] of [71, WIDTH - 71].entries()) {
+      circle(ground, pilots[id].color + '55', x, HEIGHT / 2, 32, 2);
+      circle(ground, pilots[id].color + '22', x, HEIGHT / 2, 42, 1);
+    }
+    for (const puddle of state.mud) {
+      ground.save();
+      ground.translate(puddle.x, puddle.y);
+      ground.scale(puddle.rx, puddle.ry);
+      ground.beginPath();
+      for (let point = 0; point <= 40; point++) {
+        const angle = point / 40 * Math.PI * 2;
+        const edge = 0.96 + Math.sin(angle * 5) * 0.04 + Math.cos(angle * 7) * 0.03;
+        ground.lineTo(Math.cos(angle) * edge, Math.sin(angle) * edge);
+      }
+      ground.fillStyle = '#493925';
+      ground.fill();
+      ground.restore();
+      for (let i = 0; i < 12; i++) {
+        const phase = i * 2.399;
+        const x = puddle.x + Math.cos(phase) * puddle.rx * 0.70;
+        const y = puddle.y + Math.sin(phase) * puddle.ry * 0.60;
+        line(ground, i % 2 ? '#655038' : '#53412a', 2, { x, y }, { x: x + 8, y });
+      }
+    }
+    for (const { x, y, w, h } of state.walls) {
+      rect(ground, '#0c0e10', x + 4, y + 5, w, h);
+      rect(ground, '#525b5e', x, y, w, h);
+      rect(ground, '#343a3d', x + 3, y + 3, w - 6, h - 6);
+      rect(ground, '#202628', x + 8, y + 8, w - 16, h - 16);
+      ground.save();
+      ground.beginPath();
+      ground.rect(x + 8, y + 8, w - 16, h - 16);
+      ground.clip();
+      for (let offset = -h; offset < w; offset += 13) {
+        line(ground, '#332f21', 5, { x: x + offset, y: y + h }, { x: x + offset + h, y });
+      }
+      ground.restore();
+      for (const px of [x + 5, x + w - 5]) {
+        for (const py of [y + 5, y + h - 5]) circle(ground, '#92968d', px, py, 1.5);
+      }
+    }
+    for (const [x, y, w, h] of [[0, 0, WIDTH, EDGE], [0, HEIGHT - EDGE, WIDTH, EDGE],
+      [0, EDGE, EDGE, HEIGHT - EDGE * 2], [WIDTH - EDGE, EDGE, EDGE, HEIGHT - EDGE * 2]]) {
+      rect(ground, '#101214', x, y, w, h);
+      ground.save();
+      ground.beginPath();
+      ground.rect(x + 2, y + 2, w - 4, h - 4);
+      ground.clip();
+      for (let offset = -h; offset < w; offset += 20) {
+        line(ground, '#635525', 7, { x: x + offset, y: y + h }, { x: x + offset + h, y });
+      }
+      ground.restore();
+    }
+  }
+
+  function drawRobot(robot, time) {
+    const pilot = pilots[robot.id];
+    const active = key => robot.utils.some(item => item.key === key && item.until > time);
+    ctx.save();
+    ctx.translate(robot.x, robot.y);
+    if (active('shield')) {
+      circle(ctx, '#74e2ff22', 0, 0, 29);
+      circle(ctx, '#74e2ffbb', 0, 0, 29, 2);
+      circle(ctx, '#74e2ff44', 0, 0, 33 + Math.sin(time * 9) * 2, 1);
+    }
+    ctx.rotate(robot.angle);
+    if (active('nitro')) {
+      const trail = 25 + Math.sin(time * 37) * 5;
+      for (const y of [-7, 7]) {
+        line(ctx, '#76ecff85', 4, { x: -12, y }, { x: -trail, y });
+        line(ctx, '#ccfaff', 1.5, { x: -13, y }, { x: -trail, y });
+      }
+    }
+    for (const y of [-16, 10]) {
+      rect(ctx, '#090b0c', -16, y, 33, 7);
+      const treadOffset = robot.moving ? (time * 35) % 5 : 0;
+      for (let x = -14; x < 12; x += 5) rect(ctx, '#434a4c', x + treadOffset, y + 1, 2, 5);
+    }
+    rect(ctx, '#0a0d0e', -16, -11, 32, 23);
+    rect(ctx, pilot.color, -14, -9, 26, 18);
+    rect(ctx, '#2b3033', -10, -6, 19, 12);
+    rect(ctx, pilot.ink, -12, -8, 21, 1);
+    rect(ctx, '#191c1e', -8, -4, 9, 8);
+    for (const y of [-3, 0, 3]) rect(ctx, '#50585b', -7, y, 6, 1);
+    rect(ctx, pilot.color, 6, -4, 14, 8);
+    rect(ctx, '#14191c', 9, -2, 8, 4);
+    rect(ctx, '#eff9eb', 17, -3, 3, 6);
+    if (robot.burn) {
+      for (let index = 0; index < 5; index++) {
+        const angle = time * 5 + index * 2.1;
+        circle(ctx, index % 2 ? '#ff963a' : '#ffd27c', Math.sin(angle) * 17,
+          Math.cos(angle) * 14, 1.6 + index * 0.2);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawEffect(event, state) {
+    const progress = (state.time - event.start) / (event.end - event.start);
+    const { kind, from, to } = event;
+    ctx.save();
+    ctx.globalAlpha = 1 - progress;
+    if (kind === 'hit') {
+      circle(ctx, '#ffc176', from.x, from.y, 18 + progress * 8, 2);
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffe1a0';
+      ctx.fillText(`−${event.amount.toFixed(1)}`, from.x + 16, from.y - 15 - progress * 16);
+    } else if (kind === 'dodge') {
+      circle(ctx, '#a8efff', from.x, from.y, 20 + progress * 10, 2);
+    } else if (kind === 'hook' || kind === 'tether') {
+      const source = kind === 'tether' ? state.robots[event.attached] : from;
+      const target = kind === 'tether' && event.victim !== undefined ? state.robots[event.victim] : to;
+      line(ctx, '#dee4de', 2, source, target);
+      circle(ctx, '#fff0a9', target.x, target.y, 4, 2);
+    } else if (kind === 'pistol') {
+      const tip = Math.min(1, progress * 2 + 0.35);
+      const head = { x: from.x + (to.x - from.x) * tip, y: from.y + (to.y - from.y) * tip };
+      line(ctx, '#e8fb9b', 2, from, head);
+      circle(ctx, '#e7fdba', head.x, head.y, 3);
+    } else if (kind === 'flame') {
+      line(ctx, '#c65f2a', 12, from, to);
+      line(ctx, '#ffd57e', 4, from, to);
+      for (let index = 1; index <= 8; index++) {
+        const ratio = index / 9;
+        const x = from.x + (to.x - from.x) * ratio;
+        const y = from.y + (to.y - from.y) * ratio;
+        circle(ctx, index % 2 ? '#ff963a' : '#ffbe58', x, y + 4 * Math.sin(index * 3 + progress * 7), 3 + ratio * 5);
+      }
+    } else {
+      circle(ctx, kind === 'saw' ? '#e8e5cf' : '#ffaf65', to.x, to.y, 12 + progress * 14, 4);
+      line(ctx, '#eee1a8', kind === 'hammer' ? 7 : 3, from, to);
+    }
+    ctx.restore();
+  }
+
+  function drawHP(robot, { x, y }, scale) {
+    const ratio = Math.max(0, robot.hp / robot.stats.hp);
+    const value = ratio > 0 ? Math.max(1, Math.round(ratio * 100)) : 0;
+    const pilot = pilots[robot.id];
+    rect(ctx, '#0c0f10', x - 32 * scale, y - 7 * scale, 64 * scale, 19 * scale);
+    rect(ctx, '#30363a', x - 28 * scale, y + 5 * scale, 56 * scale, 4 * scale);
+    rect(ctx, pilot.color, x - 28 * scale, y + 5 * scale, 56 * ratio * scale, 4 * scale);
+    ctx.font = `bold ${12 * scale}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = pilot.ink;
+    ctx.fillText(`${value}%`, x, y + 3 * scale);
+  }
+
+  return function render(state) {
+    if (state !== paintedState) {
+      drawGround(state);
+      paintedState = state;
+    }
+    ctx.drawImage(backdrop, 0, 0);
+    for (const drop of state.drops) {
+      const symbols = { Vida: '+', Atributo: '↑', Arma: 'A', Ferramenta: 'F', Teletransporte: '↯' };
+      const pulse = 16 + 2 * Math.sin(state.time * 5);
+      circle(ctx, '#dbfb4866', drop.x, drop.y, pulse, 2);
+      rect(ctx, '#dbfb48', drop.x - 10, drop.y - 10, 20, 20);
+      ctx.fillStyle = '#182015';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText(symbols[drop.type], drop.x, drop.y + 6);
+    }
+    state.robots.forEach(robot => drawRobot(robot, state.time));
+    state.effects.forEach(event => drawEffect(event, state));
+    const scale = Math.max(1, WIDTH * 0.83 / Math.max(canvas.clientWidth, 250));
+    const inset = EDGE + 33 * scale;
+    const labels = state.robots.map(robot => ({
+      x: Math.max(inset, Math.min(WIDTH - inset, robot.x)),
+      y: Math.max(7 * scale, robot.y - RADIUS - 18 * scale),
+    }));
+    if (Math.abs(labels[0].x - labels[1].x) < 68 * scale &&
+        Math.abs(labels[0].y - labels[1].y) < 21 * scale) {
+      const top = labels[0].y <= labels[1].y ? 0 : 1;
+      const raised = labels[1 - top].y - 21 * scale;
+      if (raised >= 7 * scale) labels[top].y = raised;
+      else labels[1 - top].y = labels[top].y + 21 * scale;
+    }
+    state.robots.forEach((robot, id) => drawHP(robot, labels[id], scale));
+  };
+}

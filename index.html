@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111315">
+  <meta name="description" content="Configure dois robôs e acompanhe um duelo autônomo na arena.">
+  <title>Battle Robots</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-icon" data-icon="swords"></span><span>BATTLE<span class="brand-accent"> ROBOTS</span></span></div>
+      <nav class="stages" aria-label="Etapas da partida">
+        <span id="stage-hangar" aria-current="step"><i></i> Hangar</span><b></b><span id="stage-arena"><i></i> Arena</span>
+      </nav>
+    </div>
+  </header>
+  <main class="shell">
+    <section id="hangar" aria-labelledby="hangar-title">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">PREPARAÇÃO DE BATALHA</p>
+          <h1 id="hangar-title">Hangar de combate</h1>
+          <p class="intro">Distribua os pontos e equipe seu robô para o duelo.</p>
+        </div>
+        <span class="mode"><span data-icon="clock"></span><span id="match-length"></span></span>
+      </div>
+      <div id="bays" class="bays"></div>
+      <p id="ready-status" class="ready-status" role="status"></p>
+    </section>
+    <section id="arena" aria-labelledby="arena-title" hidden>
+      <div class="page-heading arena-heading">
+        <div>
+          <p class="eyebrow">DUELO AUTÔNOMO</p>
+          <h1 id="arena-title" tabindex="-1">Arena de batalha</h1>
+        </div>
+        <span class="mode" id="battle-status">Em combate</span>
+      </div>
+      <div class="scoreboard" id="scoreboard"></div>
+      <div class="arena-frame">
+        <canvas id="field" width="1040" height="540" role="img" aria-label="Arena de batalha em visão aérea, com paredes, lama e dois robôs"></canvas>
+        <div class="result-overlay" id="result" hidden>
+          <div class="result-card">
+            <p class="eyebrow" id="result-reason"></p>
+            <h2 id="result-title" tabindex="-1"></h2>
+            <p id="result-score"></p>
+            <button id="reset" class="ready-button" type="button">Voltar ao hangar</button>
+          </div>
+        </div>
+      </div>
+      <div class="battle-log">
+        <h2><span data-icon="log"></span> Registro da batalha</h2>
+        <div class="event-columns" aria-hidden="true"><span>Tempo</span><span>Robô</span><span>Ação</span><span>Dano</span></div>
+        <ol id="events" aria-label="Eventos da batalha" tabindex="0"></ol>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
