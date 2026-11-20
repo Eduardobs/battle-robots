@@ -136,6 +136,10 @@ function buildBays() {
               <button type="button" data-delta="1" aria-label="${t('increase', { attribute })}">+</button>
             </div>`;
           }).join('')}</div>
+          <div class="attribute-actions">
+            <button type="button" data-attributes="clear">${t('clearAttributes')}</button>
+            <button type="button" data-attributes="random">${t('randomizeAttributes')}</button>
+          </div>
         </fieldset>
         <fieldset class="equipment-grid">
           <legend class="sr-only">${t('equipmentLegend', { name })}</legend>
@@ -173,6 +177,8 @@ function refresh(id, editedInput) {
   const rest = remaining(loadout);
   bay.querySelector('.budget output').value = rest;
   bay.querySelector('.budget-meter span').style.width = `${ATTRIBUTES_POINTS ? rest / ATTRIBUTES_POINTS * 100 : 0}%`;
+  bay.querySelector('[data-attributes="clear"]').disabled = rest === ATTRIBUTES_POINTS;
+  bay.querySelector('[data-attributes="random"]').disabled = rest === 0;
   for (const row of bay.querySelectorAll('.attribute')) {
     const value = loadout.stats[row.dataset.attribute];
     const input = row.querySelector('input');
@@ -292,6 +298,23 @@ function bindBay(bay, id) {
     input.addEventListener('change', () => { input.value = loadout.stats[key]; });
     row.querySelectorAll('button').forEach(button => button.addEventListener('click', () =>
       setAttribute(id, key, loadout.stats[key] + Number(button.dataset.delta))));
+  });
+  bay.querySelector('[data-attributes="clear"]').addEventListener('click', () => {
+    for (const { id: key } of attributes) loadout.stats[key] = ATTRIBUTES_BASE;
+    saveConfigurations();
+    refresh(id);
+  });
+  bay.querySelector('[data-attributes="random"]').addEventListener('click', () => {
+    const points = remaining(loadout);
+    const cuts = attributes.slice(1).map(() => Math.floor(Math.random() * (points + 1)));
+    cuts.sort((a, b) => a - b);
+    cuts.unshift(0);
+    cuts.push(points);
+    attributes.forEach(({ id: key }, index) => {
+      loadout.stats[key] += cuts[index + 1] - cuts[index];
+    });
+    saveConfigurations();
+    refresh(id);
   });
   bay.querySelectorAll('select').forEach(select => select.addEventListener('change', () => {
     const { kind, slot } = select.dataset;

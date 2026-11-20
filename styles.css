@@ -140,7 +140,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .loadout-json { margin-top: 14px; font-size: 0.85rem; }
 .loadout-json summary { width: fit-content; cursor: pointer; color: var(--accent); }
 .json-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-.json-actions button, .json-file {
+.attribute-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: .85rem; }
+.attribute-actions button, .json-actions button, .json-file {
   position: relative;
   padding: 6px 9px;
   border: 1px solid var(--border);
@@ -148,10 +149,10 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   color: var(--text);
   font: inherit;
 }
-.json-actions button:enabled:hover, .json-file:hover { border-color: var(--accent); }
+.attribute-actions button:enabled:hover, .json-actions button:enabled:hover, .json-file:hover { border-color: var(--accent); }
 .json-file input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
 .json-file:focus-within { outline: 2px solid var(--lime); outline-offset: 3px; }
-.json-actions button:disabled, .json-file:has(input:disabled) { opacity: 0.55; }
+.attribute-actions button:disabled, .json-actions button:disabled, .json-file:has(input:disabled) { opacity: 0.55; }
 .json-file input:disabled { cursor: default; }
 .loadout-json textarea {
   display: block;

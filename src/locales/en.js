@@ -26,6 +26,8 @@ export default {
   "attributes": "Attributes",
   "dropBonus": "Drop",
   "points": "points available",
+  "clearAttributes": "Clear points",
+  "randomizeAttributes": "Distribute points randomly",
   "attributeLegend": "Attributes for {name}",
   "decrease": "Decrease {attribute}",
   "increase": "Increase {attribute}",

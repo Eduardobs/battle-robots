@@ -26,6 +26,40 @@ test('o hangar aplica o orçamento de atributos e restaura as escolhas após rec
   await expect(bay.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled();
 });
 
+test('o hangar distribui e limpa os pontos de cada robô', async ({ page }) => {
+  await page.goto('/');
+  const first = page.locator('.bay').first();
+  const second = page.locator('.bay').nth(1);
+  const clear = first.getByRole('button', { name: 'Clear points' });
+  const randomize = first.getByRole('button', { name: 'Distribute points randomly' });
+  const firstHP = first.locator('#hp-0');
+  const secondHP = second.locator('#hp-1');
+  const hp = ATTRIBUTES_BASE + 1;
+
+  await expect(clear).toBeDisabled();
+  await firstHP.fill(String(hp));
+  await secondHP.fill(String(hp));
+  await randomize.click();
+  await expect(first.locator('.budget output')).toHaveText('0');
+  await expect(randomize).toBeDisabled();
+  const stats = await first.locator('.attribute input').evaluateAll(inputs =>
+    inputs.map(input => Number(input.value)));
+  expect(stats[0]).toBeGreaterThanOrEqual(hp);
+  expect(stats.reduce((sum, value) => sum + value - ATTRIBUTES_BASE, 0)).toBe(ATTRIBUTES_POINTS);
+
+  await page.reload();
+  await expect(first.locator('.budget output')).toHaveText('0');
+  await first.getByRole('button', { name: 'Ready', exact: true }).click();
+  await expect(clear).toBeDisabled();
+  await first.getByRole('button', { name: 'Edit loadout', exact: true }).click();
+  await clear.click();
+  await expect(first.locator('.budget output')).toHaveText(String(ATTRIBUTES_POINTS));
+  await expect(secondHP).toHaveValue(String(hp));
+  await page.reload();
+  await expect(firstHP).toHaveValue(String(ATTRIBUTES_BASE));
+  await expect(clear).toBeDisabled();
+});
+
 test('o hangar valida JSON e permite baixar a configuração aplicada', async ({ page }) => {
   await page.goto('/');
   const bay = page.locator('.bay').first();
