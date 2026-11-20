@@ -197,10 +197,12 @@ test('a navegação contorna a placa e evita um destino junto à borda', () => {
   assert.equal(robot.hp, 100);
 });
 
-test('ao esgotar o tempo, o resultado usa o HP absoluto e trata empates', () => {
-  for (const [hp, winner] of [[90, 0], [100, null], [110, 1]]) {
+test('ao esgotar o tempo, o resultado compara os percentuais de vida restante', () => {
+  for (const [hp, winner] of [[100, 0], [120, null], [140, 1]]) {
     const duration = STEP * 2.5;
-    const { state, step, events } = duel([loadout(), loadout({ hp })], { duration });
+    const { state, step, events } = duel([loadout(), loadout({ hp: 200 })], { duration });
+    state.robots[0].hp = 60;
+    state.robots[1].hp = hp;
     step();
     step();
     assert.equal(state.result, null);
@@ -213,6 +215,18 @@ test('ao esgotar o tempo, o resultado usa o HP absoluto e trata empates', () => 
     assert.equal(events.length, eventCount);
     assert.equal(state.time, duration);
   }
+});
+
+test('o encerramento manual usa o máximo de vida com o bônus ativo', () => {
+  const { state, step, finish } = duel([loadout(), loadout({ hp: 200 })]);
+  const [a, b] = state.robots;
+  a.hp = 60;
+  b.hp = 116;
+  state.drops.push({ x: b.x, y: b.y, type: 'attribute' });
+  step();
+  assert.ok(b.stats.hp > b.baseStats.hp);
+  finish();
+  assert.deepEqual(state.result, { winner: 0, reason: 'manualEnd' });
 });
 
 test('um ataque letal limita o dano à vida restante e termina em nocaute', () => {

@@ -79,7 +79,7 @@ export default {
   "hpUnit": "HP",
   "hpScore": "{current} / {max} {unit}",
   "hpAmount": "{value} {unit}",
-  "pilotScore": "{name} {hp}",
+  "pilotScore": "{name} {healthPercent}",
   "attr.hp.name": "HP",
   "attr.hp.description": "Maximum health",
   "attr.defense.name": "Defense",

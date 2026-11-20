@@ -1,7 +1,6 @@
 import { createBattle, STEP } from '../battle.js';
 import { pilots } from '../catalog.js';
-import { t } from '../i18n.js';
-import { formatHP, hpAmount } from '../ui/format.js';
+import { locale, t } from '../i18n.js';
 import { clearEvents, flushEvents, queueEvent, translateEvents } from './event-log.js';
 import { createRenderer } from './renderer.js';
 import { buildScoreboard, updateRobotDetails, updateScore } from './scoreboard.js';
@@ -31,10 +30,13 @@ export function createArenaController({ onStart, onReset }) {
 
   function showResult(state, focus = true) {
     const { winner, reason } = state.result;
+    const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
     byId('result-reason').textContent = t(reason);
     byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: t(pilots[winner].nameKey) });
     byId('result-score').textContent = state.robots
-      .map((robot, id) => t('pilotScore', { name: t(pilots[id].nameKey), hp: hpAmount(formatHP(robot.hp)) })).join(' · ');
+      .map(robot => t('pilotScore', {
+        name: t(pilots[robot.id].nameKey), healthPercent: percent.format(robot.hp / robot.stats.hp),
+      })).join(' · ');
     result.hidden = false;
     if (focus) byId('result-title').focus({ preventScroll: true });
   }

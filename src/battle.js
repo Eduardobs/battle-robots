@@ -137,7 +137,8 @@ export function createBattle(loadouts, {
     if (state.result) return;
     robots.forEach(reportSpikeDamage);
     const [a, b] = robots;
-    const winner = Math.abs(a.hp - b.hp) < 1e-8 ? null : a.hp > b.hp ? a.id : b.id;
+    const difference = a.hp / a.stats.hp - b.hp / b.stats.hp;
+    const winner = Math.abs(difference) < Number.EPSILON ? null : difference > 0 ? a.id : b.id;
     state.result = { winner, reason };
     log(null, `event.${reason}`);
   }
