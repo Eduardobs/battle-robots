@@ -140,8 +140,6 @@ export default {
   "boost": "{item} +10%",
   "event.knockout": "Combate finalizado por nocaut",
   "event.timeout": "Tiempo de combate agotado",
-  "event.enterMud": "Entró en el barro",
-  "event.leaveMud": "Salió del barro",
   "event.move": "Cambió de posición",
   "event.hold": "Mantuvo la posición",
   "event.expireTool": "{item} se desactivó",

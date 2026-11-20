@@ -140,8 +140,6 @@ export default {
   "boost": "{item} +10%",
   "event.knockout": "Battle ended by knockout",
   "event.timeout": "Battle time expired",
-  "event.enterMud": "Entered the mud",
-  "event.leaveMud": "Left the mud",
   "event.move": "Changed position",
   "event.hold": "Held position",
   "event.expireTool": "{item} expired",

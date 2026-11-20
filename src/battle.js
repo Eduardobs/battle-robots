@@ -400,7 +400,9 @@ export function createBattle(loadouts, {
       intent = 'fight';
       goal = enemy;
     }
-    if (intent !== robot.intent) log(robot, `intent.${intent}`);
+    if (intent !== robot.intent && intent !== 'drop' && intent !== 'reposition') {
+      log(robot, `intent.${intent}`);
+    }
     robot.intent = intent;
     robot.goal = goal;
     robot.nextPath = 0;
@@ -513,9 +515,7 @@ export function createBattle(loadouts, {
   }
 
   function walk(robot, enemy, dt) {
-    const muddy = inMud(robot, state.mud);
-    if (muddy !== robot.muddy) log(robot, muddy ? 'event.enterMud' : 'event.leaveMud');
-    robot.muddy = muddy;
+    robot.muddy = inMud(robot, state.mud);
 
     if (robot.pull) {
       const { target, until, stop } = robot.pull;
