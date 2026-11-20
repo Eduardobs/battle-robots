@@ -226,7 +226,7 @@ body:has(#arena:not([hidden])) .topbar-inner,
 .timer .eyebrow { font-size: .65rem; }
 .arena-layout {
   display: grid;
-  grid-template-columns: 172px minmax(0, 1fr) clamp(248px, 24vw, 360px);
+  grid-template-columns: 172px minmax(0, 1fr) clamp(330px, 33vw, 460px);
   grid-template-rows: minmax(0, 1fr);
   align-items: start;
   min-height: 0;
@@ -275,19 +275,40 @@ body:has(#arena:not([hidden])) .topbar-inner,
 .result-card p:not(.eyebrow) { color: var(--muted); font: 500 .83rem/1.4 var(--mono); }
 .battle-log {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   align-self: stretch;
+  min-width: 0;
   min-height: 0;
   border: 1px solid var(--border);
   background: var(--inset);
 }
 .battle-log h2 { padding: 9px 12px; }
 .battle-log .icon { color: var(--lime); }
-.event-columns, #events li { display: grid; grid-template-columns: 5ch 7ch minmax(0, 1fr) 5ch; align-items: start; gap: 6px; padding: 7px 10px; font-size: .75rem; overflow-wrap: anywhere; }
-.event-columns, #events { scrollbar-gutter: stable; }
-.event-columns { overflow-y: hidden; }
-.event-columns { border-block: 1px solid var(--border); color: var(--muted); font: 600 .75rem var(--mono); text-transform: uppercase; }
-#events { margin: 0; padding: 0; list-style: none; overflow-y: auto; font: 500 .75rem/1.35 var(--mono); }
+#event-scroll {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(max-content, 1fr) max-content;
+  align-content: start;
+  column-gap: 6px;
+  overflow: auto;
+  font: 500 .7rem/1.35 var(--mono);
+  white-space: nowrap;
+}
+.event-columns, #events, #events li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.event-columns, #events li { padding: 5px 8px; }
+.event-columns {
+  position: sticky;
+  top: 0;
+  border-block: 1px solid var(--border);
+  background: var(--inset);
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+#events { margin: 0; padding: 0; list-style: none; }
 #events li:nth-child(even) { background: #1a1e20; }
 #events .orange, #events .blue { color: var(--accent); }
 .event-time { color: var(--muted); }

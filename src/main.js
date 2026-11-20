@@ -9,6 +9,7 @@ const hangar = byId('hangar');
 const arena = byId('arena');
 const bays = byId('bays');
 const events = byId('events');
+const eventScroll = byId('event-scroll');
 const result = byId('result');
 const robotDetails = pilots.map((_, id) => byId(`robot-details-${id}`));
 const render = createRenderer(byId('field'));
@@ -340,7 +341,7 @@ function queueEvent(event) {
 
 function flushEvents() {
   if (!pendingEvents.length) return;
-  const follow = events.scrollTop + events.clientHeight >= events.scrollHeight - 24;
+  const follow = eventScroll.scrollTop + eventScroll.clientHeight >= eventScroll.scrollHeight - 24;
   const overflow = eventRows.length + pendingEvents.length - MAX_EVENT_ROWS;
   if (overflow > 0) {
     for (const { row } of eventRows.splice(0, overflow)) row.remove();
@@ -354,7 +355,7 @@ function flushEvents() {
   }
   pendingEvents.length = 0;
   events.append(batch);
-  if (follow) events.scrollTop = events.scrollHeight;
+  if (follow) eventScroll.scrollTop = eventScroll.scrollHeight;
 }
 
 function clearEvents() {

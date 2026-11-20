@@ -63,8 +63,10 @@
         </div>
         <div class="battle-log">
           <h2><span data-icon="log"></span> <span data-t="battleLog"></span></h2>
-          <div class="event-columns" aria-hidden="true"><span data-t="time"></span><span data-t="robot"></span><span data-t="action"></span><span data-t="damage"></span></div>
-          <ol id="events" data-t-label="events" tabindex="0"></ol>
+          <div id="event-scroll" role="region" data-t-label="events" tabindex="0">
+            <div class="event-columns" aria-hidden="true"><span data-t="time"></span><span data-t="robot"></span><span data-t="action"></span><span data-t="damage"></span></div>
+            <ol id="events" data-t-label="events"></ol>
+          </div>
         </div>
       </div>
     </section>
