@@ -262,7 +262,7 @@ export function createBattle(loadouts, {
     robots.forEach(unit => { unit.thinkAt = 0; });
     log(robot, 'event.collect', `drop.${drop.type}`);
     if (drop.type === 'health') {
-      robot.hp = Math.min(robot.stats.hp, robot.hp + robot.stats.hp * 0.2);
+      robot.hp = Math.min(robot.stats.hp, robot.hp + robot.stats.hp * 0.15);
       return;
     }
     if (drop.type === 'teleport') {

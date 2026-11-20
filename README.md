@@ -8,7 +8,7 @@ Durante o duelo, os robôs disputam drops que aparecem a cada 5 segundos e perma
 
 | Drop | Efeito ao coletar |
 | --- | --- |
-| Vida | Recupera 20% do HP máximo, até o limite de vida. |
+| Vida | Recupera 15% do HP máximo, até o limite de vida. |
 | Atributo | Aumenta um atributo aleatório em 10% por 5 segundos. Repetir o mesmo bônus renova sua duração. |
 | Arma | Instala uma arma adicional aleatória por 10 segundos. |
 | Ferramenta | Instala uma ferramenta adicional aleatória por 10 segundos. |

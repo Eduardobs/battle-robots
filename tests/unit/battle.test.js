@@ -137,9 +137,14 @@ test('o escudo reduz o dano e a arma respeita o intervalo entre ataques', () => 
   assert.equal(events.filter(event => event.action === 'event.hit').length, 1);
 });
 
-test('um drop de vida é coletado e a cura respeita o HP máximo', () => {
+test('o drop de vida recupera 15% do HP máximo e respeita esse limite', () => {
   const { state, step, events } = duel([loadout(), loadout()]);
   const robot = state.robots[0];
+  robot.hp = 60;
+  state.drops.push({ x: robot.x, y: robot.y, type: 'health' });
+  step();
+  assert.equal(robot.hp, 75);
+
   robot.hp = 95;
   state.drops.push({ x: robot.x, y: robot.y, type: 'health' });
   step();
