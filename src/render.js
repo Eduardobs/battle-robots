@@ -163,7 +163,7 @@ export function createRenderer(canvas) {
     rect(ctx, pilot.color, 6, -4, 14, 8);
     rect(ctx, '#14191c', 9, -2, 8, 4);
     rect(ctx, '#eff9eb', 17, -3, 3, 6);
-    if (robot.burn) {
+    if (robot.burns.length) {
       for (let index = 0; index < 5; index++) {
         const angle = time * 5 + index * 2.1;
         circle(ctx, index % 2 ? '#ff963a' : '#ffd27c', Math.sin(angle) * 17,
@@ -214,6 +214,9 @@ export function createRenderer(canvas) {
     } else if (key === 'disc') {
       circle(ctx, '#e2ff96', x, y, 6, 2);
       circle(ctx, '#fff5c8', x, y, 2);
+    } else if (key === 'nitrogen') {
+      circle(ctx, '#9ceaff88', x, y, 7);
+      circle(ctx, '#dcfaff', x, y, 3);
     } else if (key === 'pulse') {
       circle(ctx, '#82eeff', x, y, 8, 2);
     } else {

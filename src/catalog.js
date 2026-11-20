@@ -9,6 +9,7 @@ export const attributes = [
 
 export const guns = {
   flame: { icon: 'flame', range: 195, interval: 0.45, damage: 4, projectileSpeed: 480 },
+  nitrogen: { icon: 'snowflake', range: 210, interval: 2.5, damage: 12, projectileSpeed: 500 },
   pistol: { icon: 'pistol', range: 340, interval: 1.1, damage: 11, projectileSpeed: 1200 },
   saw: { icon: 'saw', interval: 0.23, damage: 3 },
   hammer: { icon: 'hammer', interval: 1.7, damage: 25 },
@@ -32,6 +33,7 @@ export const pilots = [
 ];
 
 const icons = {
+  snowflake: '<path d="M12 2v20M3.3 7l17.4 10m0-10L3.3 17M9 4l3 3 3-3m-6 16 3-3 3 3"/>',
   swords: '<path d="m14 17 3 3m-4-2 5-5m-5 0L4 4h5l8 8M7 17l-3 3m2-7 5 5m1-8 7-6h2l-1 4-6 6"/>',
   heart: '<path d="M20.8 8.5c0 4.6-8.8 9.5-8.8 9.5S3.2 13.1 3.2 8.5a4.3 4.3 0 0 1 8.8-1 4.3 4.3 0 0 1 8.8 1Z"/>',
   shield: '<path d="M12 21s7-3.5 7-10V5l-7-2-7 2v6c0 6.5 7 10 7 10Z"/><path d="m9 12 2 2 4-4"/>',

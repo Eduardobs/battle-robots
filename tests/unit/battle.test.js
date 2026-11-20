@@ -529,3 +529,55 @@ test('o eco atinge apenas se o alvo permanecer na área até o pulso', () => {
     assert.equal(target.hp, escapes ? 100 : 84);
   }
 });
+
+function statusDuel(weapon) {
+  const battle = duel([loadout({ weapons: [weapon], speed: 0 }), loadout({ speed: 0 })]);
+  const [attacker, target] = battle.state.robots;
+  Object.assign(attacker, { x: 100, y: 70 });
+  Object.assign(target, { x: 100 + 2 * RADIUS, y: 70 });
+  for (let frame = 0; frame < 30 && target.hp === 100; frame++) battle.step();
+  assert.equal(target.hp, 100 - guns[weapon].damage);
+  attacker.guns[0].ready = Infinity;
+  return { ...battle, attacker, target };
+}
+
+test('cada acerto do lança-chamas causa doze pulsos independentes durante três segundos', () => {
+  const { step, attacker, target } = statusDuel('flame');
+  step(0.5);
+  attacker.guns[0].ready = 0;
+  step();
+  step(0.1);
+  attacker.guns[0].ready = Infinity;
+  assert.equal(target.burns.length, 2);
+  step(2.5);
+  assert.equal(target.burns.length, 1);
+  step(0.5);
+  assert.equal(target.burns.length, 0);
+  assert.ok(Math.abs(target.hp - (100 - 2 * guns.flame.damage - 24 * 1.15)) < 1e-8);
+});
+
+for (const weapon of ['hammer', 'pulse', 'nitrogen']) {
+  test(`${weapon} impede ações até o fim da imobilização`, () => {
+    const { step, state, target } = statusDuel(weapon);
+    const start = { x: target.x, y: target.y };
+    Object.assign(target, { goal: { x: 500, y: target.y }, thinkAt: Infinity });
+    target.stats.speed = 100;
+    target.guns.push({ key: 'pistol', ready: 0 });
+    target.utils.push({ key: 'shield', ready: 0, until: 0 });
+    const frozen = weapon === 'nitrogen';
+    step((frozen ? 2 : 3) - STEP);
+    assert.deepEqual({ x: target.x, y: target.y }, start);
+    assert.equal(target.guns[0].ready, 0);
+    assert.equal(target.utils[0].ready, 0);
+    step();
+    assert.ok(target.guns[0].ready > state.time);
+    assert.ok(target.utils[0].ready > state.time);
+    if (frozen) {
+      for (let frame = 1; frame <= 61; frame++) {
+        const before = target.x;
+        step();
+        assert.ok(Math.abs(target.x - before - 150 * STEP * Math.min(1, frame * STEP)) < 1e-8);
+      }
+    }
+  });
+}

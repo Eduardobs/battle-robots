@@ -42,8 +42,8 @@ let frameId = 0;
 
 const loadouts = pilots.map((_, id) => ({
   stats: Object.fromEntries(attributes.map(({ id }) => [id, ATTRIBUTES_BASE])),
-  guns: (id === 0 ? ['flame', 'pistol', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo']
-    : ['pistol', 'flame', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo']).slice(0, GUNS_QUANTITY),
+  guns: (id === 0 ? ['flame', 'pistol', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo', 'nitrogen']
+    : ['pistol', 'flame', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo', 'nitrogen']).slice(0, GUNS_QUANTITY),
   utils: (id === 0 ? ['shield', 'nitro', 'beacon', 'hologram', 'treads'] : ['nitro', 'shield', 'beacon', 'hologram', 'treads']).slice(0, UTILS_QUANTITY),
   strategy: id === 0 ? 'advance' : 'distance',
   ready: false,
@@ -422,8 +422,15 @@ function buildScoreboard() {
   }));
 }
 
-function renderRobotDetails(panel, robot) {
-  const signature = JSON.stringify([language, robot.stats, Object.keys(robot.boosts),
+function renderRobotDetails(panel, robot, time) {
+  const statuses = [];
+  if (robot.burns.length) {
+    const count = robot.burns.length;
+    statuses.push(t('status.burned') + (count > 1 ? ` ×${count}` : ''));
+  }
+  if (robot.lockedUntil > time + 1e-8) statuses.push(t('status.locked'));
+  if (robot.frozenUntil > time + 1e-8) statuses.push(t('status.frozen'));
+  const signature = JSON.stringify([language, statuses, robot.stats, Object.keys(robot.boosts),
     robot.guns.map(item => [item.key, item.expires]), robot.utils.map(item => [item.key, item.expires])]);
   if (panel.dataset.signature === signature) return;
   panel.dataset.signature = signature;
@@ -444,13 +451,14 @@ function renderRobotDetails(panel, robot) {
     return `<h4>${t(label)}</h4><ol class="battle-slots">${slots || '<li>—</li>'}</ol>`;
   }).join('');
   panel.innerHTML = `<h3 id="robot-title-${robot.id}">${pilotName(robot.id)}</h3>
+    ${statuses.length ? `<ul class="battle-statuses">${statuses.map(label => `<li>${label}</li>`).join('')}</ul>` : ''}
     <h4>${t('attributes')}</h4><dl class="battle-stats">${statRows}</dl>${equipment}`;
 }
 
 function updateRobotDetails({ robots, time, result }) {
   for (const robot of robots) {
     const panel = robotDetails[robot.id];
-    renderRobotDetails(panel, robot);
+    renderRobotDetails(panel, robot, time);
     panel.querySelectorAll('.weapon-cooldown').forEach((counter, index) => {
       const remaining = result ? 0 : Math.round((robot.guns[index].ready - time) * 100);
       const text = remaining > 0 ? (remaining / 100).toFixed(2).replace('.', decimalSeparator) : '';

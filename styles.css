@@ -294,6 +294,21 @@ body:has(#arena:not([hidden])) .topbar-inner,
   font-size: .75rem;
   overflow-wrap: anywhere;
 }
+.battle-statuses {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 6px 0;
+  list-style: none;
+}
+.battle-statuses li {
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: .75rem;
+}
 .robot-details h3 { color: var(--accent); font: 800 1.3rem/1 var(--display); }
 .robot-details h4 {
   margin: 9px 0 4px;

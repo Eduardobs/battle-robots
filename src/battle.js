@@ -10,6 +10,8 @@ export const STEP = 1 / 60;
 const SPEED_PER_POINT = 1.5;
 const PUSH_POWER_SCALE = 100;
 const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
+const FREEZE_HOLD = 2;
+const THAW_DURATION = 1;
 const CONTACT_RANGE = RADIUS * 2;
 const DODGE_LOOKAHEAD = 0.45;
 const DODGE_CLEARANCE = RADIUS + 4;
@@ -267,7 +269,7 @@ export function createBattle(loadouts, {
       guns: loadout.guns.map(key => ({ key, ready: 0 })),
       utils: loadout.utils.map(key => ({ key, ready: 0, until: 0 })),
       baseStats, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
-      waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false, spikeDamage: 0,
+      waypoint: null, nextPath: 0, burns: [], lockedUntil: 0, frozenUntil: 0, pull: null, muddy: false, moving: false, spikeDamage: 0,
     };
   });
   const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
@@ -357,8 +359,13 @@ export function createBattle(loadouts, {
     log(robot, 'event.boost', `attr.${id}.name`);
   }
 
+  function canAct(robot) {
+    return state.time + 1e-8 >= Math.max(robot.lockedUntil, robot.frozenUntil - THAW_DURATION);
+  }
+
   function movementSpeed(robot) {
-    return SPEED_PER_POINT * robot.stats.speed * spikeSpeed(robot) * (active(robot, 'nitro') ? 1.2 : 1) *
+    const thaw = clamp(1 - (robot.frozenUntil - state.time) / THAW_DURATION, 0, 1);
+    return thaw * SPEED_PER_POINT * robot.stats.speed * spikeSpeed(robot) * (active(robot, 'nitro') ? 1.2 : 1) *
       (inMud(robot, arena.mud) && !active(robot, 'treads') ? 0.55 : 1);
   }
 
@@ -778,8 +785,9 @@ export function createBattle(loadouts, {
         item.until = 0;
         log(robot, 'event.expireTool', `utils.${item.key}.name`);
       }
+      if (!canAct(robot)) continue;
       const shouldUse = item.key === 'shield'
-        ? (enemyRange + 1e-8 >= span && !blocked(robot, enemy, state.walls)) || robot.burn
+        ? (enemyRange + 1e-8 >= span && !blocked(robot, enemy, state.walls)) || robot.burns.length
         : item.key === 'beacon'
           ? robot.intent === 'drop' && state.drops.includes(robot.goal) && blocked(robot, enemy, state.walls)
           : item.key === 'hologram'
@@ -841,13 +849,16 @@ export function createBattle(loadouts, {
     const weapon = guns[key];
     const critical = key === 'pistol' && random() < 0.18;
     const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${key}.name`);
-    if (returned || state.result) return;
+    if (state.result) return;
+    if (key === 'hammer' || key === 'pulse') enemy.lockedUntil = state.time + 3;
+    if (key === 'nitrogen') enemy.frozenUntil = state.time + FREEZE_HOLD + THAW_DURATION;
+    if (key === 'flame') {
+      enemy.burns.push({ from: robot, until: state.time + 3, next: state.time + 0.25 });
+    }
+    if (returned) return;
     if (key === 'pulse') {
       move(enemy, { x: enemy.x + 58 * Math.cos(angle), y: enemy.y + 58 * Math.sin(angle) }, 58, robot);
       enemy.thinkAt = 0;
-    }
-    if (key === 'flame') {
-      enemy.burn = { from: robot, until: state.time + 3, next: enemy.burn?.next ?? state.time + 0.25 };
     }
     if (key === 'hook') {
       enemy.pull = { target: robot, until: state.time + 0.55, stop: RADIUS * 2 };
@@ -997,7 +1008,7 @@ export function createBattle(loadouts, {
     for (const robot of order) {
       useTools(robot, robots[1 - robot.id]);
       const movement = movements[robot.id];
-      movement.walked = walk(robot, robots[1 - robot.id], delta, movement);
+      movement.walked = canAct(robot) && walk(robot, robots[1 - robot.id], delta, movement);
       const hologram = robot.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
       if (hologram) {
         const { decoy, heading } = hologram;
@@ -1021,7 +1032,7 @@ export function createBattle(loadouts, {
       let nearest = Infinity;
       for (const robot of order) {
         const gap = distance(robot, drop);
-        if (gap <= RADIUS + 11 && gap < nearest && !blocked(robot, drop, arena.walls)) {
+        if (canAct(robot) && gap <= RADIUS + 11 && gap < nearest && !blocked(robot, drop, arena.walls)) {
           collector = robot;
           nearest = gap;
         }
@@ -1030,12 +1041,14 @@ export function createBattle(loadouts, {
       else index++;
     }
     for (const robot of order) {
-      if (robot.burn && robot.burn.next <= state.time + 1e-8 && robot.burn.next <= robot.burn.until + 1e-8) {
-        robot.burn.next += 0.25;
-        damage(robot.burn.from, robot, 1.15, 'event.burn');
-        if (state.result) return;
+      for (const burn of robot.burns) {
+        while (burn.next <= Math.min(state.time, burn.until) + 1e-8) {
+          burn.next += 0.25;
+          damage(burn.from, robot, 1.15, 'event.burn');
+          if (state.result) return;
+        }
       }
-      if (robot.burn?.until <= state.time + 1e-8) robot.burn = null;
+      if (robot.burns.length) robot.burns = robot.burns.filter(burn => burn.until > state.time + 1e-8);
     }
     for (const robot of order) {
       if (!robot.echo || robot.echo.at > state.time) continue;
@@ -1050,7 +1063,9 @@ export function createBattle(loadouts, {
     }
     state.projectiles = state.projectiles.filter(shot =>
       !state.result && advanceProjectile(shot, shot.speed * delta));
-    for (const robot of order) fire(robot, robots[1 - robot.id]);
+    for (const robot of order) {
+      if (canAct(robot)) fire(robot, robots[1 - robot.id]);
+    }
     if (!state.result && state.time >= state.duration) finish('timeout');
   }
 
