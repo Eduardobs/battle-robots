@@ -1,0 +1,126 @@
+import { expect, test } from '@playwright/test';
+import { ATTRIBUTES_BASE, ATTRIBUTES_POINTS, GUNS_QUANTITY, UTILS_QUANTITY } from '../../config.js';
+
+test('o hangar aplica o orçamento de atributos e restaura as escolhas após recarregar', async ({ page }) => {
+  await page.goto('/');
+  const bay = page.locator('.bay').first();
+  const hp = bay.locator('#hp-0');
+  const strategy = bay.locator('#strategy-0-0');
+  const budget = bay.locator('.budget output');
+
+  await expect(hp).toHaveValue(String(ATTRIBUTES_BASE));
+  await expect(budget).toHaveText(String(ATTRIBUTES_POINTS));
+
+  const maxHP = ATTRIBUTES_BASE + ATTRIBUTES_POINTS;
+  await hp.fill(String(maxHP + 100));
+  await hp.press('Tab');
+  await expect(hp).toHaveValue(String(maxHP));
+  await expect(budget).toHaveText('0');
+  await expect(bay.locator('[data-delta="1"]').first()).toBeDisabled();
+  await strategy.selectOption('flank');
+
+  await page.reload();
+  await expect(hp).toHaveValue(String(maxHP));
+  await expect(strategy).toHaveValue('flank');
+  await expect(budget).toHaveText('0');
+  await expect(bay.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled();
+});
+
+test('o hangar valida JSON e permite baixar a configuração aplicada', async ({ page }) => {
+  await page.goto('/');
+  const bay = page.locator('.bay').first();
+  await bay.getByText('JSON configuration', { exact: true }).click();
+  const input = bay.getByRole('textbox', { name: 'Paste the configuration JSON' });
+  const apply = bay.getByRole('button', { name: 'Apply JSON' });
+  const hp = bay.locator('#hp-0');
+  const status = bay.locator('.loadout-json').getByRole('status');
+
+  await input.fill('{');
+  await apply.click();
+  await expect(status).toContainText('Invalid JSON');
+  await expect(hp).toHaveValue(String(ATTRIBUTES_BASE));
+
+  const config = {
+    stats: {
+      hp: ATTRIBUTES_BASE + ATTRIBUTES_POINTS,
+      defense: ATTRIBUTES_BASE,
+      attack: ATTRIBUTES_BASE,
+      speed: ATTRIBUTES_BASE,
+      evasion: ATTRIBUTES_BASE,
+      aim: ATTRIBUTES_BASE,
+    },
+    guns: ['pistol', 'flame', 'saw', 'hammer', 'hook'].slice(0, GUNS_QUANTITY),
+    utils: ['nitro', 'shield'].slice(0, UTILS_QUANTITY),
+    strategy: 'flank',
+  };
+  await input.fill(JSON.stringify({ ...config, stats: { ...config.stats, hp: config.stats.hp + 1 } }));
+  await apply.click();
+  await expect(status).toContainText('Invalid JSON');
+  await expect(hp).toHaveValue(String(ATTRIBUTES_BASE));
+
+  await input.fill(JSON.stringify(config));
+  await apply.click();
+  await expect(status).toHaveText('Configuration loaded.');
+  await expect(hp).toHaveValue(String(config.stats.hp));
+  await expect(bay.locator('#strategy-0-0')).toHaveValue(config.strategy);
+
+  const downloadEvent = page.waitForEvent('download');
+  await bay.getByRole('button', { name: /Download JSON/ }).click();
+  const download = await downloadEvent;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual(config);
+});
+
+test('o idioma escolhido é aplicado ao hangar e persiste após recarregar', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Combat hangar' })).toBeVisible();
+  await page.locator('#language').selectOption('pt-br');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+  await page.reload();
+  await expect(page.locator('#language')).toHaveValue('pt-br');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+});
+
+test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ page }) => {
+  await page.route('**/config.js', async route => {
+    const response = await route.fetch();
+    const config = await response.text();
+    await route.fulfill({
+      response,
+      body: config.replace(/BATTLE_TIME_IN_SECONDS = [^;]+;/, 'BATTLE_TIME_IN_SECONDS = 2;'),
+    });
+  });
+  await page.clock.install();
+  await page.goto('/');
+  const bays = page.locator('.bay');
+  const first = bays.nth(0);
+  const second = bays.nth(1);
+  const hangar = page.locator('#hangar');
+  const arena = page.locator('#arena');
+
+  await first.getByRole('button', { name: 'Ready', exact: true }).click();
+  await expect(first.getByRole('button', { name: 'Edit loadout' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(first.locator('#hp-0')).toBeDisabled();
+  await expect(hangar).toBeVisible();
+  await expect(arena).toBeHidden();
+
+  await second.getByRole('button', { name: 'Ready', exact: true }).click();
+  await expect(hangar).toBeHidden();
+  await expect(arena).toBeVisible();
+  await expect(arena.getByRole('img')).toBeVisible();
+  await expect(arena.locator('#events')).toContainText('Battle started');
+
+  await page.clock.runFor(2200);
+  await expect(arena.locator('#countdown')).toHaveText('00:00');
+  await expect(arena.locator('#result-reason')).toHaveText('Time up');
+  await expect(arena.locator('#result-title')).toBeFocused();
+  await expect(arena.locator('#events')).toContainText('Battle time expired');
+
+  await arena.getByRole('button', { name: 'Back to the hangar' }).click();
+  await expect(hangar).toBeVisible();
+  await expect(arena).toBeHidden();
+  await expect(hangar.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(2);
+  await expect(first.locator('#hp-0')).toBeEnabled();
+});

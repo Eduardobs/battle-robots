@@ -28,6 +28,18 @@ python3 -m http.server 8000
 
 Abra [localhost:8000](http://localhost:8000).
 
+## Testes
+
+Use Node.js 22 ou superior. Os testes de ponta a ponta também usam Python 3 para servir o jogo localmente.
+
+```sh
+npm ci
+npx playwright install chromium
+npm test
+```
+
+Use `npm run test:unit` para rodar apenas os testes unitários ou `npm run test:e2e` para rodar apenas os testes no Chromium.
+
 ## Configuração
 
 Edite [config.js](config.js).
