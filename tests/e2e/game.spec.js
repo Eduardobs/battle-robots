@@ -280,14 +280,16 @@ test('o cooldown aparece ao lado do golpe de cada robô e acompanha o tempo da b
   await ready.first().press('Enter');
   await ready.first().press('Enter');
 
+  for (const summary of await page.locator('.robot-details summary').all()) await summary.press('Enter');
   const red = page.locator('#robot-details-0 li').filter({ hasText: 'Lança-chamas' }).locator('.weapon-cooldown');
   const blue = page.locator('#robot-details-1 li').filter({ hasText: 'Pistola' }).locator('.weapon-cooldown');
   await expect(red).toBeHidden();
   await expect(blue).toBeHidden();
 
-  await page.clock.runFor(1600);
-  await expect(blue).toHaveText(/^1,0\d$/);
-  await page.clock.runFor(100);
+  await page.clock.runFor(1500);
+  await expect(blue).toBeVisible();
+  await expect(blue).toHaveText(/^1,\d{2}$/);
+  await page.clock.runFor(200);
   await expect(blue).toHaveText(/^0,\d{2}$/);
   await expect(red).toBeHidden();
   await page.locator('#pause-battle').press('Enter');

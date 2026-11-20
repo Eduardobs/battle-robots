@@ -9,20 +9,22 @@ let displayedSeconds;
 
 function scorePanel(pilot, id) {
   const stats = attributes.map(attr => `<div><dt>${icon(attr.icon)} ${t(`attr.${attr.id}.name`)}</dt><dd></dd></div>`).join('');
+  const detailsOpen = document.getElementById(`robot-details-${id}`)?.open;
   return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div><div class="score-tools"></div>
-    <div class="robot-details" id="robot-details-${id}">
-      <ul class="battle-statuses"><li></li><li>${t('status.locked')}</li><li>${t('status.frozen')}</li></ul>
+    <ul class="battle-statuses"><li></li><li>${t('status.locked')}</li><li>${t('status.frozen')}</li></ul>
+    <details class="robot-details" id="robot-details-${id}"${detailsOpen ? ' open' : ''}>
+      <summary>${t('robotDetails')}</summary>
       <div class="battle-detail-groups">
         <div><h3>${t('attributes')}</h3><dl class="battle-stats">${stats}</dl></div>
         <div><h3>${t('weapon')}</h3><ol class="battle-slots" data-kind="guns"></ol></div>
         <div><h3>${t('tool')}</h3><ol class="battle-slots" data-kind="utils"></ol></div>
-      </div></div></section>`;
+      </div></details></section>`;
 }
 
 export function buildScoreboard() {
   document.getElementById('scoreboard').innerHTML = `${scorePanel(pilots[0], 0)}
-    <div class="timer">${icon('clock')}<span class="eyebrow">${t('remainingTime')}</span><strong id="countdown"></strong></div>
+    <div class="timer"><span class="timer-label eyebrow">${icon('clock')} ${t('remainingTime')}</span><strong id="countdown"></strong></div>
     ${scorePanel(pilots[1], 1)}`;
   countdown = document.getElementById('countdown');
   displayedSeconds = undefined;

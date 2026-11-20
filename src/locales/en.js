@@ -65,6 +65,7 @@ export default {
   "loadedJson": "Configuration loaded.",
   "readyStatus": "{count}/2 players ready · The battle begins when both players confirm.",
   "remainingTime": "Time remaining",
+  "robotDetails": "Robot details",
   "pauseBattle": "Pause battle",
   "resumeBattle": "Resume battle",
   "finishBattle": "End battle",

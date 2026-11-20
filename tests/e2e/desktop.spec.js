@@ -126,6 +126,11 @@ test('a configuração máxima permite navegar por todos os equipamentos sem amp
   await expectToFit(page);
   for (const button of await page.locator('.bay .ready-button').all()) await button.click();
   await page.locator('#pause-battle').click();
-  await expect(page.locator('#robot-details-0 [data-kind="guns"] li')).toHaveCount(9);
+  const details = page.locator('#robot-details-0');
+  const weapons = details.locator('[data-kind="guns"] li');
+  await expect(weapons.first()).toBeHidden();
+  await details.locator('summary').press('Enter');
+  await expect(weapons).toHaveCount(9);
+  await expect(weapons.last()).toBeVisible();
   await expectToFit(page);
 });
