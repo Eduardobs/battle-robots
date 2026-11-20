@@ -4,6 +4,7 @@ import { numberFormat, t } from '../i18n.js';
 import { icon } from '../ui/icons.js';
 import { bindConfiguration } from './json-panel.js';
 import { loadouts, remaining, saveConfigurations } from './loadouts.js';
+import { createPreset, presets } from './presets.js';
 
 const bays = document.getElementById('bays');
 let bayList = [];
@@ -34,11 +35,27 @@ function equipment(id, kind, selection, name) {
     <button type="button" data-step="1" aria-label="${t('nextSlot')}" title="${t('nextSlot')}">›</button></div>` : ''}</div>`;
 }
 
+function presetPicker(id) {
+  const field = `preset-${id}`;
+  return `<div class="equipment preset-picker">
+    <label class="field-label" for="${field}">${t('preset')}</label>
+    <div class="preset-controls">
+      <span class="select-wrap"><i>${icon('settings')}</i><select id="${field}" aria-describedby="${field}-detail">
+        <option value="">${t('choosePreset')}</option>
+        ${Object.keys(presets).map(key => `<option value="${key}">${t(`preset.${key}.name`)}</option>`).join('')}
+      </select>${icon('chevron')}</span>
+      <button type="button" data-apply-preset disabled>${t('applyPreset')}</button>
+    </div>
+    <small id="${field}-detail" aria-live="polite"></small>
+  </div>`;
+}
+
 export function buildBays(onReady) {
   const drafts = bayList.map(({ bay }) => ({
     source: bay.querySelector('textarea').value,
     open: !bay.querySelector('.loadout-json').hidden,
     status: bay.querySelector('.json-status').dataset.message,
+    preset: bay.querySelector('.preset-picker select').value,
     slots: [...bay.querySelectorAll('.equipment:not([hidden]) select')].map(select => select.id),
   }));
   bays.innerHTML = pilots.map((pilot, id) => {
@@ -79,6 +96,7 @@ export function buildBays(onReady) {
           <fieldset class="equipment-grid" id="equipment-panel-${id}">
             <legend class="sr-only">${t('equipmentLegend', { name })}</legend>
             <h3>${icon('layers')} ${t('equipment')}</h3>
+            ${presetPicker(id)}
             ${equipment(id, 'guns', loadouts[id].guns, t('weapon'))}
             ${equipment(id, 'utils', loadouts[id].utils, t('tool'))}
             ${equipment(id, 'strategy', [loadouts[id].strategy], t('strategy'))}
@@ -121,6 +139,9 @@ export function buildBays(onReady) {
     const draft = drafts[id];
     if (!draft) return;
     const { bay } = controls;
+    const preset = bay.querySelector('.preset-picker select');
+    preset.value = draft.preset;
+    preset.dispatchEvent(new Event('change'));
     bay.querySelector('textarea').value = draft.source;
     if (draft.status) {
       const status = bay.querySelector('.json-status');
@@ -159,7 +180,7 @@ function refreshAttributes(id) {
 function refreshEquipment(id) {
   const { bay } = bayList[id];
   const loadout = loadouts[id];
-  for (const select of bay.querySelectorAll('select')) {
+  for (const select of bay.querySelectorAll('select[data-kind]')) {
     const { kind, slot } = select.dataset;
     const selected = loadout[kind];
     const key = kind === 'strategy' ? selected : selected[slot];
@@ -203,6 +224,11 @@ function setAttribute(id, key, requested) {
 
 function bindBay({ bay, rows }, id, onReady) {
   const loadout = loadouts[id];
+  const refreshConfiguration = () => {
+    saveConfigurations();
+    refreshAttributes(id);
+    refreshEquipment(id);
+  };
   rows.forEach(({ key, slider, field }) => {
     const row = slider.closest('.attribute');
     const openTip = () => {
@@ -246,13 +272,28 @@ function bindBay({ bay, rows }, id, onReady) {
     saveConfigurations();
     refreshAttributes(id);
   });
-  bay.querySelectorAll('select').forEach(select => select.addEventListener('change', () => {
+  bay.querySelectorAll('select[data-kind]').forEach(select => select.addEventListener('change', () => {
     const { kind, slot } = select.dataset;
     if (kind === 'strategy') loadout.strategy = select.value;
     else loadout[kind][slot] = select.value;
     saveConfigurations();
     refreshEquipment(id);
   }));
+  const picker = bay.querySelector('.preset-picker');
+  const preset = picker.querySelector('select');
+  const applyPreset = picker.querySelector('button');
+  preset.addEventListener('change', () => {
+    applyPreset.disabled = !preset.value;
+    picker.querySelector('small').textContent = preset.value ? t(`preset.${preset.value}.description`) : '';
+  });
+  applyPreset.addEventListener('click', () => {
+    if (loadout.ready || !preset.value) return;
+    Object.assign(loadout, createPreset(preset.value));
+    for (const field of bay.querySelectorAll('.equipment-group .equipment')) {
+      field.hidden = field.querySelector('select').dataset.slot !== '0';
+    }
+    refreshConfiguration();
+  });
   bay.querySelector('.json-toggle').addEventListener('click', event => {
     const panel = bay.querySelector('.loadout-json');
     panel.hidden = !panel.hidden;
@@ -267,11 +308,7 @@ function bindBay({ bay, rows }, id, onReady) {
     fields[current].hidden = true;
     fields[(current + Number(button.dataset.step) + fields.length) % fields.length].hidden = false;
   }));
-  bindConfiguration(bay, id, loadout, () => {
-    saveConfigurations();
-    refreshAttributes(id);
-    refreshEquipment(id);
-  });
+  bindConfiguration(bay, id, loadout, refreshConfiguration);
   bay.querySelector('.ready-button').addEventListener('click', () => {
     loadout.ready = !loadout.ready;
     refreshReady(id);

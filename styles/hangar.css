@@ -46,13 +46,13 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .attr-tip { position: absolute; bottom: calc(100% - 1px); left: 0; z-index: 5; width: max-content; max-width: 100%; padding: 8px 11px; border: 1px solid var(--accent); background: #09111b; box-shadow: 0 4px 16px #0008; font: .83rem/1.4 var(--body); visibility: hidden; pointer-events: none; }
 .attribute.tip-open .attr-tip { visibility: visible; transition: visibility 0s .25s; }
 .attribute-actions, .json-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
-.attribute-actions button, .json-actions button, .json-file, .json-toggle, .slot-nav button, .event-pager button {
+.attribute-actions button, .json-actions button, .json-file, .json-toggle, .slot-nav button, .event-pager button, .preset-controls button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; padding: 6px 9px;
   border: 1px solid var(--border); background: #182332; color: var(--text); font: 500 .8rem/1.35 var(--body);
 }
 .attribute-actions .icon, .json-toggle .icon { width: 15px; height: 15px; }
 button:disabled, fieldset:disabled input, fieldset:disabled select, .json-file:has(input:disabled) { opacity: .56; }
-.attribute-actions button:enabled:hover, .json-actions button:enabled:hover, .json-toggle:hover, .json-file:hover { border-color: var(--accent); }
+.attribute-actions button:enabled:hover, .json-actions button:enabled:hover, .json-toggle:hover, .json-file:hover, .preset-controls button:enabled:hover { border-color: var(--accent); }
 .equipment-grid h3 { margin-bottom: 13px; }
 .equipment-group { position: relative; margin-top: 12px; }
 .equipment { display: grid; gap: 5px; }
@@ -64,6 +64,8 @@ button:disabled, fieldset:disabled input, fieldset:disabled select, .json-file:h
 .select-wrap select { appearance: none; width: 100%; min-height: 37px; border: 1px solid var(--border); background: #1b2735; color: var(--text); padding: 5px 30px 5px 36px; font: 600 .91rem var(--body); }
 .select-wrap .icon { width: 16px; height: 16px; }
 .equipment small, .json-status { color: var(--muted); font-size: .79rem; line-height: 1.4; }
+.preset-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.preset-picker small:empty { display: none; }
 .slot-nav { position: absolute; right: 0; top: -5px; display: flex; gap: 2px; }
 .slot-nav button { padding: 0 8px; }
 .loadout-json { display: grid; gap: 10px; }

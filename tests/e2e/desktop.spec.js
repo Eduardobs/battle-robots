@@ -112,6 +112,9 @@ test('a configuração máxima permite navegar por todos os equipamentos sem amp
   });
   await page.goto('/');
   const bay = page.locator('.bay').first();
+  await bay.locator('#preset-0').selectOption('marksman');
+  await bay.locator('[data-apply-preset]').click();
+  await expect(bay.locator('.budget output')).toHaveText('0');
   const groups = bay.locator('.equipment-group');
   for (const [index, slots] of [9, 5].entries()) {
     const group = groups.nth(index);

@@ -1,5 +1,43 @@
 import { expect, test } from '@playwright/test';
 import { ATTRIBUTES_BASE, ATTRIBUTES_POINTS, GUNS_QUANTITY, UTILS_QUANTITY } from '../../config.js';
+import { createPreset } from '../../src/hangar/presets.js';
+
+test('cada robô pode aplicar uma predefinição completa e recarregar a configuração', async ({ page }) => {
+  await page.goto('/');
+  const first = page.locator('.bay').first();
+  const second = page.locator('.bay').nth(1);
+  const picker = first.locator('#preset-0');
+  const apply = first.locator('[data-apply-preset]');
+  await expect(apply).toBeDisabled();
+  await picker.selectOption('brawler');
+  await expect(first.locator('.preset-picker small')).toContainText('saw');
+  await expect(first.locator('.budget output')).toHaveText(String(ATTRIBUTES_POINTS));
+
+  await page.locator('#language').selectOption('pt-br');
+  await expect(picker).toHaveValue('brawler');
+  await expect(first.locator('.preset-picker small')).toContainText('serra');
+  await apply.click();
+  await expect(first.locator('.budget output')).toHaveText('0');
+  await expect(second.locator('.budget output')).toHaveText(String(ATTRIBUTES_POINTS));
+  await second.locator('#preset-1').selectOption('marksman');
+  await second.locator('[data-apply-preset]').click();
+  await expect(second.locator('.budget output')).toHaveText('0');
+
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('battle-robots-loadouts')));
+  const expected = [createPreset('brawler'), createPreset('marksman')];
+  expect(await saved()).toEqual(expected);
+  await page.reload();
+  await expect(first.locator('#hp-0')).toHaveValue(String(expected[0].stats.hp));
+  await expect(second.locator('#strategy-1-0')).toHaveValue(expected[1].strategy);
+  if (GUNS_QUANTITY) await expect(first.locator('#guns-0-0')).toHaveValue(expected[0].guns[0]);
+  if (UTILS_QUANTITY) await expect(second.locator('#utils-1-0')).toHaveValue(expected[1].utils[0]);
+
+  await picker.selectOption('skirmisher');
+  await first.locator('.ready-button').click();
+  await expect(picker).toBeDisabled();
+  await expect(apply).toBeDisabled();
+  expect(await saved()).toEqual(expected);
+});
 
 test('o hangar aplica o orçamento de atributos e restaura as escolhas após recarregar', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
