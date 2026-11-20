@@ -43,8 +43,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .attribute input::-webkit-slider-thumb { appearance: none; width: 12px; height: 14px; background: var(--accent); border-radius: 2px; }
 .attribute input::-moz-range-thumb { width: 12px; height: 14px; border: 0; background: var(--accent); border-radius: 2px; }
 .attribute-limits { display: block; margin-top: 4px; color: var(--accent); font: .75rem var(--mono); }
-.attr-tip { position: absolute; bottom: calc(100% - 1px); left: 0; z-index: 5; width: max-content; max-width: 100%; padding: 8px 11px; border: 1px solid var(--accent); background: #09111b; box-shadow: 0 4px 16px #0008; font: .83rem/1.4 var(--body); visibility: hidden; }
-.attribute:not(.tip-dismissed):is(:hover,:focus-within) .attr-tip { visibility: visible; transition: visibility 0s .25s; }
+.attr-tip { position: absolute; bottom: calc(100% - 1px); left: 0; z-index: 5; width: max-content; max-width: 100%; padding: 8px 11px; border: 1px solid var(--accent); background: #09111b; box-shadow: 0 4px 16px #0008; font: .83rem/1.4 var(--body); visibility: hidden; pointer-events: none; }
+.attribute.tip-open .attr-tip { visibility: visible; transition: visibility 0s .25s; }
 .attribute-actions, .json-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
 .attribute-actions button, .json-actions button, .json-file, .json-toggle, .slot-nav button, .event-pager button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; padding: 6px 9px;

@@ -10,6 +10,26 @@ async function expectToFit(page) {
   expect(overflow).toEqual([0, 0]);
 }
 
+test('o tooltip de atributo fecha ao sair com o mouse ou mover o foco', async ({ page }) => {
+  await page.goto('/');
+  const bay = page.locator('.bay').first();
+  const slider = bay.locator('#hp-0');
+  const tooltip = bay.locator('#tip-hp-0');
+
+  await slider.click();
+  await expect(slider).toBeFocused();
+  await expect(tooltip).toBeVisible();
+  const bounds = await tooltip.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(tooltip).toBeHidden();
+  await expect(slider).toBeFocused();
+
+  await slider.hover();
+  await expect(tooltip).toBeVisible();
+  await bay.locator('.json-toggle').focus();
+  await expect(tooltip).toBeHidden();
+});
+
 test('o hangar, o editor, a arena e o resultado cabem em Full HD nos três idiomas', async ({ page }) => {
   const locales = [
     ['pt-br', 'Vermelho', 'Vida máxima'],

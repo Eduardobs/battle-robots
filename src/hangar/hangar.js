@@ -10,7 +10,7 @@ let bayList = [];
 
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
-  bays.querySelectorAll('.attribute:is(:hover, :focus-within)').forEach(row => row.classList.add('tip-dismissed'));
+  bays.querySelector('.attribute.tip-open')?.classList.remove('tip-open');
 });
 
 function options(kind) {
@@ -205,7 +205,17 @@ function bindBay({ bay, rows }, id, onReady) {
   const loadout = loadouts[id];
   rows.forEach(({ key, slider, field }) => {
     const row = slider.closest('.attribute');
-    for (const type of ['pointerenter', 'focusin']) row.addEventListener(type, () => row.classList.remove('tip-dismissed'));
+    const openTip = () => {
+      bays.querySelector('.attribute.tip-open')?.classList.remove('tip-open');
+      row.classList.add('tip-open');
+    };
+    const closeTip = () => row.classList.remove('tip-open');
+    row.addEventListener('pointerenter', openTip);
+    row.addEventListener('pointerleave', closeTip);
+    row.addEventListener('focusin', openTip);
+    row.addEventListener('focusout', event => {
+      if (!row.contains(event.relatedTarget)) closeTip();
+    });
     slider.addEventListener('input', () => setAttribute(id, key, slider.valueAsNumber));
     field.addEventListener('blur', () => {
       const value = field.valueAsNumber;
