@@ -10,6 +10,7 @@ const arena = byId('arena');
 const bays = byId('bays');
 const events = byId('events');
 const result = byId('result');
+const robotDetails = pilots.map((_, id) => byId(`robot-details-${id}`));
 const render = createRenderer(byId('field'));
 const languageSelect = byId('language');
 const formatHP = value => value > 0 && value < 0.1
@@ -343,6 +344,31 @@ function buildScoreboard() {
   }));
 }
 
+function updateRobotDetails(robot) {
+  const panel = robotDetails[robot.id];
+  const signature = JSON.stringify([language, robot.stats, Object.keys(robot.boosts),
+    robot.guns.map(item => item.key), robot.utils.map(item => item.key)]);
+  if (panel.dataset.signature === signature) return;
+  panel.dataset.signature = signature;
+
+  const statRows = attributes.map(({ id, icon: symbol }) => {
+    const boosted = Object.hasOwn(robot.boosts, id);
+    const bonus = boosted
+      ? `<span class="drop-bonus" title="${t('dropBonus')}"><span class="sr-only">${t('dropBonus')} </span>+${numberFormat.format(robot.stats[id] - robot.baseStats[id])}</span>`
+      : '';
+    return `<div><dt>${icon(symbol)} ${t(`attr.${id}.name`)}</dt>
+      <dd>${numberFormat.format(robot.stats[id])}${bonus}</dd></div>`;
+  }).join('');
+  const equipment = [['guns', 'weapon'], ['utils', 'tool']].map(([kind, label]) => {
+    const slots = robot[kind].map(({ key, expires }) => `<li>
+      ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
+        ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span></li>`).join('');
+    return `<h4>${t(label)}</h4><ol class="battle-slots">${slots || '<li>—</li>'}</ol>`;
+  }).join('');
+  panel.innerHTML = `<h3 id="robot-title-${robot.id}">${pilotName(robot.id)}</h3>
+    <h4>${t('attributes')}</h4><dl class="battle-stats">${statRows}</dl>${equipment}`;
+}
+
 function updateScore(state) {
   byId('countdown').textContent = timecode(Math.ceil(state.duration - state.time));
   state.robots.forEach((robot, id) => {
@@ -353,11 +379,10 @@ function updateScore(state) {
     score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
     const tools = [
       robot.intent && t(`intent.${robot.intent}`),
-      ...robot.utils.filter(item => item.until > state.time || item.expires).map(item => t(`utils.${item.key}.name`)),
-      ...robot.guns.filter(item => item.expires).map(item => t(`guns.${item.key}.name`)),
-      ...attributes.filter(attr => robot.boosts[attr.id]).map(attr => t('boost', { item: t(`attr.${attr.id}.name`) })),
+      ...robot.utils.filter(item => item.until > state.time).map(item => t(`utils.${item.key}.name`)),
     ].filter(Boolean).join(' · ');
     if (score.tools.textContent !== tools) score.tools.textContent = tools;
+    updateRobotDetails(robot);
   });
 }
 

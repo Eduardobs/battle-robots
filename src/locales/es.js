@@ -24,6 +24,7 @@ export default {
   "player": "Jugador {number}",
   "configuring": "Configurando",
   "attributes": "Atributos",
+  "dropBonus": "Botín",
   "points": "puntos disponibles",
   "attributeLegend": "Atributos de {name}",
   "decrease": "Disminuir {attribute}",

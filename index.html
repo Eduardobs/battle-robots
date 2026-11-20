@@ -45,16 +45,20 @@
         <span class="mode" id="battle-status"></span>
       </div>
       <div class="scoreboard" id="scoreboard"></div>
-      <div class="arena-frame">
-        <canvas id="field" width="1040" height="540" role="img" data-t-label="arenaLabel"></canvas>
-        <div class="result-overlay" id="result" hidden>
-          <div class="result-card">
-            <p class="eyebrow" id="result-reason"></p>
-            <h2 id="result-title" tabindex="-1"></h2>
-            <p id="result-score"></p>
-            <button id="reset" class="ready-button" type="button" data-t="back"></button>
+      <div class="arena-layout">
+        <aside id="robot-details-0" class="robot-details orange" aria-labelledby="robot-title-0"></aside>
+        <div class="arena-frame">
+          <canvas id="field" width="1040" height="540" role="img" data-t-label="arenaLabel"></canvas>
+          <div class="result-overlay" id="result" hidden>
+            <div class="result-card">
+              <p class="eyebrow" id="result-reason"></p>
+              <h2 id="result-title" tabindex="-1"></h2>
+              <p id="result-score"></p>
+              <button id="reset" class="ready-button" type="button" data-t="back"></button>
+            </div>
           </div>
         </div>
+        <aside id="robot-details-1" class="robot-details blue" aria-labelledby="robot-title-1"></aside>
       </div>
       <div class="battle-log">
         <h2><span data-icon="log"></span> <span data-t="battleLog"></span></h2>
