@@ -162,6 +162,20 @@ export function createRenderer(canvas) {
       const target = kind === 'tether' && event.victim !== undefined ? state.robots[event.victim] : to;
       line(ctx, '#dee4de', 2, source, target);
       circle(ctx, '#fff0a9', target.x, target.y, 4, 2);
+    } else if (kind === 'echo' || kind === 'echoBlast') {
+      ctx.globalAlpha = kind === 'echo' ? 0.55 + progress * 0.45 : 1 - progress;
+      circle(ctx, '#ff83e8', to.x, to.y, event.radius, 2);
+      circle(ctx, '#ff83e8', to.x, to.y, Math.max(1, progress * event.radius), 3);
+    } else if (kind === 'disc') {
+      line(ctx, '#e2ff96', 3, from, event.bounce || to);
+      if (event.bounce) {
+        line(ctx, '#e2ff96', 3, event.bounce, to);
+        circle(ctx, '#fff5c8', event.bounce.x, event.bounce.y, 8, 3);
+      }
+      circle(ctx, '#e2ff96', to.x, to.y, 5, 2);
+    } else if (kind === 'pulse' || kind === 'beaconReturn') {
+      line(ctx, '#82eeff', 3, from, to);
+      circle(ctx, '#82eeff', to.x, to.y, 10 + progress * 20, 2);
     } else if (kind === 'pistol') {
       const tip = Math.min(1, progress * 2 + 0.35);
       const head = { x: from.x + (to.x - from.x) * tip, y: from.y + (to.y - from.y) * tip };
@@ -211,7 +225,24 @@ export function createRenderer(canvas) {
       ctx.font = 'bold 18px monospace';
       ctx.fillText(dropSymbols[drop.type] ?? t(`dropSymbol.${drop.type}`), drop.x, drop.y + 6);
     }
-    state.robots.forEach(robot => drawRobot(robot, state.time));
+    for (const robot of state.robots) {
+      const color = pilots[robot.id].ink;
+      for (const tool of robot.utils) {
+        if (tool.until <= state.time) continue;
+        if (tool.key === 'beacon') {
+          circle(ctx, color, tool.anchor.x, tool.anchor.y, 13, 2);
+          circle(ctx, color, tool.anchor.x, tool.anchor.y, 4);
+        } else if (tool.key === 'hologram') {
+          ctx.save();
+          ctx.globalAlpha = 0.42;
+          drawRobot({ ...robot, ...tool.decoy, angle: tool.heading, utils: [] }, state.time);
+          ctx.restore();
+        } else if (tool.key === 'treads') {
+          circle(ctx, color, robot.x, robot.y, 22, 2);
+        }
+      }
+      drawRobot(robot, state.time);
+    }
     state.effects.forEach(event => drawEffect(event, state));
     const scale = Math.max(1, WIDTH * 0.83 / Math.max(canvas.clientWidth, 250));
     const inset = EDGE + 33 * scale;

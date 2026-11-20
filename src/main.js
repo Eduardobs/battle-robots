@@ -23,7 +23,7 @@ const hpAmount = value => t('hpAmount', { value, unit: t('hpUnit') });
 const pilotName = id => pilots[id].name;
 const timecode = seconds => [Math.floor(seconds / 60), Math.floor(seconds % 60)]
   .map(value => String(value).padStart(2, '0')).join(':');
-const equipmentCatalogs = { guns, utils, strategy: { advance: {}, distance: {}, flank: {} } };
+const equipmentCatalogs = { guns, utils, strategy: { advance: {}, distance: {}, flank: {}, intercept: {}, skirmish: {}, score: {} } };
 let bayList = [];
 let scores = [];
 let countdown;
@@ -42,9 +42,9 @@ let frameId = 0;
 
 const loadouts = pilots.map((_, id) => ({
   stats: Object.fromEntries(attributes.map(({ id }) => [id, ATTRIBUTES_BASE])),
-  guns: (id === 0 ? ['flame', 'pistol', 'saw', 'hammer', 'hook']
-    : ['pistol', 'flame', 'saw', 'hammer', 'hook']).slice(0, GUNS_QUANTITY),
-  utils: (id === 0 ? ['shield', 'nitro'] : ['nitro', 'shield']).slice(0, UTILS_QUANTITY),
+  guns: (id === 0 ? ['flame', 'pistol', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo']
+    : ['pistol', 'flame', 'saw', 'hammer', 'hook', 'pulse', 'disc', 'echo']).slice(0, GUNS_QUANTITY),
+  utils: (id === 0 ? ['shield', 'nitro', 'beacon', 'hologram', 'treads'] : ['nitro', 'shield', 'beacon', 'hologram', 'treads']).slice(0, UTILS_QUANTITY),
   strategy: id === 0 ? 'advance' : 'distance',
   ready: false,
 }));

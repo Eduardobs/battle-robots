@@ -193,3 +193,28 @@ for (const strategy of ['distance', 'flank']) {
     assert.ok(events.some(event => event.item === 'guns.pistol.name'));
   });
 }
+
+test('o canhão de pulso causa dano e empurra o alvo para longe', () => {
+  const { state, step } = duel([loadout({ weapons: ['pulse'], speed: 0 }), loadout({ speed: 0 })]);
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 50 });
+  Object.assign(target, { x: 150, y: 50 });
+  step();
+  assert.equal(target.hp, 95);
+  assert.equal(target.x, 208);
+});
+
+test('o eco atinge apenas se o alvo permanecer na área até o pulso', () => {
+  for (const escapes of [false, true]) {
+    const { state, step } = duel([loadout({ weapons: ['echo'], speed: 0 }), loadout({ speed: 0 })]);
+    const [attacker, target] = state.robots;
+    Object.assign(attacker, { x: 100, y: 50 });
+    Object.assign(target, { x: 150, y: 50 });
+    step();
+    assert.equal(target.hp, 100);
+    assert.ok(state.effects.some(effect => effect.kind === 'echo'));
+    if (escapes) target.x += 50;
+    for (let frame = 0; frame < 40; frame++) step();
+    assert.equal(target.hp, escapes ? 100 : 84);
+  }
+});

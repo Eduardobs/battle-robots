@@ -58,6 +58,32 @@ function pointAlong(a, b, fraction) {
   return { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction };
 }
 
+const ECHO_DELAY = 0.65;
+const ECHO_RADIUS = 36;
+
+function bouncePoint(from, to, walls, range) {
+  let best;
+  for (const wall of walls) {
+    for (const [axis, length] of rectangleAxes) {
+      const cross = axis === 'x' ? 'y' : 'x';
+      const crossLength = axis === 'x' ? 'h' : 'w';
+      for (const face of [wall[axis], wall[axis] + wall[length]]) {
+        const side = face === wall[axis] ? -1 : 1;
+        if ((from[axis] - face) * side <= 0 || (to[axis] - face) * side <= 0) continue;
+        const mirror = { ...to, [axis]: 2 * face - to[axis] };
+        const point = pointAlong(from, mirror, (face - from[axis]) / (mirror[axis] - from[axis]));
+        if (point[cross] < wall[cross] || point[cross] > wall[cross] + wall[crossLength]) continue;
+        const gap = distance(from, point) + distance(point, to);
+        const outside = { ...point, [axis]: face + side * 0.001 };
+        if (gap > range || blocked(from, outside, walls) || blocked(outside, to, walls)) continue;
+        best = point;
+        range = gap;
+      }
+    }
+  }
+  return best;
+}
+
 export function generateArena(random) {
   const between = (min, max) => min + random() * (max - min);
   const cells = [[318, 142], [520, 270], [722, 400], [704, 135], [333, 395]];
@@ -89,8 +115,8 @@ function prepareNavigation(walls) {
   return { solids, nodes, edges };
 }
 
-function nextWaypoint(start, end, { solids, nodes, edges }) {
-  if (!blocked(start, end, solids)) return end;
+function nextWaypoint(start, end, { solids, nodes, edges }, measure = false) {
+  if (!blocked(start, end, solids)) return measure ? distance(start, end) : end;
   const costs = nodes.map(node => blocked(start, node, solids) ? Infinity : distance(start, node));
   const exits = nodes.map(node => blocked(node, end, solids) ? Infinity : distance(node, end));
   const first = [...nodes];
@@ -115,7 +141,7 @@ function nextWaypoint(start, end, { solids, nodes, edges }) {
       }
     });
   }
-  return waypoint;
+  return measure ? best : waypoint;
 }
 
 function inMud(robot, mud) {
@@ -223,6 +249,30 @@ export function createBattle(loadouts, {
     log(robot, 'event.boost', `attr.${id}.name`);
   }
 
+  function movementSpeed(robot) {
+    return SPEED_PER_POINT * robot.stats.speed * (active(robot, 'nitro') ? 1.2 : 1) *
+      (inMud(robot, arena.mud) && !active(robot, 'treads') ? 0.55 : 1);
+  }
+
+  function interceptPoint(robot, enemy, range) {
+    if (enemy.intent !== 'drop' || !state.drops.includes(enemy.goal)) return null;
+    const enemySpeed = movementSpeed(enemy);
+    const speed = movementSpeed(robot);
+    if (enemySpeed <= 0 || speed <= 0) return null;
+    const waypoint = nextWaypoint(enemy, enemy.goal, navigation);
+    for (const fraction of [0.85, 0.65, 0.45]) {
+      const crossing = pointAlong(enemy, waypoint, fraction);
+      const budget = (distance(enemy, crossing) / enemySpeed - 0.15) * speed;
+      const point = maneuverPositions.find(candidate =>
+        distance(candidate, crossing) <= range * 0.9 &&
+        distance(candidate, crossing) >= RADIUS * 2 &&
+        distance(robot, candidate) < budget && !blocked(candidate, crossing, arena.walls) &&
+        nextWaypoint(robot, candidate, navigation, true) < budget);
+      if (point) return point;
+    }
+    return null;
+  }
+
   function chooseGoal(robot, enemy, range) {
     const span = distance(robot, enemy);
     const nearCorner = Math.min(robot.x, WIDTH - robot.x) < 145 &&
@@ -232,14 +282,43 @@ export function createBattle(loadouts, {
       (robot.strategy === 'distance' && span < range * 0.6));
     let intent;
     let goal;
-    if (state.drops.length && !(nearCorner && span < 115)) {
+    const finalStretch = robot.strategy === 'score' && state.duration - state.time <= 20;
+    const ahead = finalStretch && robot.hp > enemy.hp;
+    const heal = finalStretch && robot.hp < enemy.hp && robot.hp < robot.stats.hp &&
+      state.drops.filter(drop => drop.type === 'health');
+    const drops = finalStretch ? (heal || []) : state.drops;
+    const cooling = robot.strategy === 'skirmish' && robot.guns[0]?.ready > state.time + 0.15;
+    const intercept = robot.strategy === 'intercept' && robot.guns.length &&
+      interceptPoint(robot, enemy, range);
+    const echo = enemy.echo;
+    if (echo && distance(robot, echo.point) <= ECHO_RADIUS + 8) {
+      intent = 'retreat';
+      let shortest = Infinity;
+      goal = robot;
+      for (let index = 0; index < 12; index++) {
+        const angle = index * Math.PI / 6;
+        const point = { x: echo.point.x + Math.cos(angle) * (ECHO_RADIUS + 8),
+          y: echo.point.y + Math.sin(angle) * (ECHO_RADIUS + 8) };
+        if (point.x < EDGE + RADIUS || point.x > WIDTH - EDGE - RADIUS ||
+            point.y < EDGE + RADIUS || point.y > HEIGHT - EDGE - RADIUS ||
+            blocked(robot, point, navigation.solids)) continue;
+        const gap = distance(robot, point);
+        if (gap < shortest) {
+          goal = point;
+          shortest = gap;
+        }
+      }
+    } else if (intercept) {
+      intent = 'intercept';
+      goal = intercept;
+    } else if (drops.length && !cooling && !(nearCorner && span < 115)) {
       intent = 'drop';
       const cost = drop => distance(robot, drop) +
         (blocked(robot, drop, navigation.solids) ? 75 : 0) +
         Math.max(0, distance(robot, drop) - distance(enemy, drop)) * 0.45;
-      goal = state.drops[0];
+      goal = drops[0];
       let bestCost = cost(goal);
-      for (const drop of state.drops) {
+      for (const drop of drops) {
         const value = cost(drop);
         if (value < bestCost) {
           goal = drop;
@@ -249,15 +328,15 @@ export function createBattle(loadouts, {
     } else if (keepsRange(robot) && robot.guns.length) {
       intent = 'fight';
       goal = enemy;
-    } else if (nearCorner || danger || state.time >= robot.maneuverAt || !robot.guns.length) {
-      intent = nearCorner || danger ? 'retreat' : 'reposition';
+    } else if (ahead || cooling || (!finalStretch && (nearCorner || danger || state.time >= robot.maneuverAt)) || !robot.guns.length) {
+      intent = ahead || cooling || nearCorner || danger ? 'retreat' : 'reposition';
       const score = point => {
         const gap = distance(point, enemy);
         const cover = blocked(point, enemy, arena.walls);
         const desired = intent === 'retreat' ? threat + 130 : range * 0.85;
         return -Math.abs(gap - desired) * 0.7 - Math.abs(distance(robot, point) - 165) +
           Math.min(140, point.x, WIDTH - point.x, point.y, HEIGHT - point.y) * 0.9 +
-          (cover && danger ? 75 : 0) - (inMud(point, arena.mud) ? 55 : 0);
+          (cover && (ahead || cooling || danger) ? 140 : 0) - (inMud(point, arena.mud) ? 55 : 0);
       };
       goal = maneuverPositions[0];
       let bestScore = score(goal);
@@ -277,7 +356,7 @@ export function createBattle(loadouts, {
     robot.intent = intent;
     robot.goal = goal;
     robot.nextPath = 0;
-    robot.thinkAt = state.time + (intent === 'retreat' || intent === 'reposition' ? 1.45 : 0.45);
+    robot.thinkAt = state.time + (cooling || finalStretch ? 0.2 : intent === 'retreat' || intent === 'reposition' ? 1.45 : 0.45);
   }
 
   function log(robot, action, item = null, damage = null) {
@@ -307,7 +386,21 @@ export function createBattle(loadouts, {
     defender.hp = Math.max(0, defender.hp - applied);
     log(attacker, action, item, applied);
     effect('hit', defender, defender, 0.40, { amount: applied });
-    if (defender.hp <= 0) finish('knockout');
+    if (defender.hp <= 0) {
+      finish('knockout');
+      return;
+    }
+    const beacon = defender.utils.find(tool => tool.key === 'beacon' && tool.until > state.time);
+    if (beacon && applied >= Math.min(15, defender.stats.hp * 0.12) &&
+        distance(beacon.anchor, attacker) >= RADIUS * 2) {
+      effect('beaconReturn', defender, beacon.anchor, 0.35);
+      Object.assign(defender, beacon.anchor, { pull: null, waypoint: null, thinkAt: 0 });
+      if (attacker.pull?.target === defender) attacker.pull = null;
+      beacon.until = 0;
+      log(defender, 'event.beaconReturn');
+      return true;
+    }
+    return false;
   }
 
   function move(robot, target, amount, opponent) {
@@ -390,9 +483,9 @@ export function createBattle(loadouts, {
     const clear = !blocked(robot, enemy, state.walls);
     const firingDistance = firingRange(robot);
     const preferred = firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83);
-    const speed = SPEED_PER_POINT * robot.stats.speed *
-      (active(robot, 'nitro') ? 1.2 : 1) * (muddy ? 0.55 : 1);
+    const speed = movementSpeed(robot);
     if (state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
+    const prior = { x: robot.x, y: robot.y };
     let target = robot;
     let moving = false;
     if (keepsRange(robot) && robot.goal === enemy && clear) {
@@ -412,6 +505,7 @@ export function createBattle(loadouts, {
       target = robot.waypoint;
       moving = move(robot, target, speed * dt, enemy);
     }
+    if (moving) robot.heading = Math.atan2(robot.y - prior.y, robot.x - prior.x);
     turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
     if (moving !== robot.moving) log(robot, moving ? 'event.move' : 'event.hold');
     robot.moving = moving;
@@ -428,8 +522,19 @@ export function createBattle(loadouts, {
       }
       const shouldUse = item.key === 'shield'
         ? (enemyRange >= span && !blocked(robot, enemy, state.walls)) || robot.burn
-        : span > 125 || robot.muddy;
+        : item.key === 'beacon'
+          ? robot.intent === 'drop' && state.drops.includes(robot.goal) && blocked(robot, enemy, state.walls)
+          : item.key === 'hologram'
+            ? robot.intent === 'retreat' && span <= enemyRange && !blocked(robot, enemy, state.walls)
+            : item.key === 'treads'
+              ? inMud(robot, arena.mud) && (robot.moving || span <= enemyRange)
+              : span > 125 || robot.muddy;
       if (shouldUse && item.ready <= state.time) {
+        if (item.key === 'beacon') item.anchor = { x: robot.x, y: robot.y };
+        if (item.key === 'hologram') {
+          item.decoy = { x: robot.x, y: robot.y };
+          item.heading = robot.heading ?? robot.angle;
+        }
         item.until = state.time + tool.duration;
         item.ready = state.time + tool.cooldown;
         log(robot, 'event.activate', `utils.${item.key}.name`);
@@ -490,12 +595,31 @@ export function createBattle(loadouts, {
         }
         if (robot.guns.length > 1) continue;
       }
+      const hologram = item.key !== 'echo' && enemy.utils.find(tool =>
+        tool.key === 'hologram' && tool.until > state.time &&
+        distance(robot, tool.decoy) <= weapon.range && !blocked(robot, tool.decoy, state.walls));
+      if (hologram) {
+        hologram.until = 0;
+        item.ready = state.time + weapon.interval;
+        effect(item.key, robot, hologram.decoy, 0.21);
+        log(enemy, 'event.decoy');
+        continue;
+      }
+      if (item.key === 'echo' && robot.echo) continue;
       const contact = firstContact(robot, enemy, state.walls);
       const wall = distance(contact, enemy) > 0.1;
-      if (distance(robot, contact) > weapon.range || (wall && item.key !== 'hook')) continue;
+      if (distance(robot, contact) > weapon.range) continue;
+      const bounce = wall && item.key === 'disc' && bouncePoint(robot, enemy, state.walls, weapon.range);
+      if (wall && !bounce && item.key !== 'hook') continue;
       item.ready = state.time + weapon.interval;
-      effect(item.key, robot, contact, item.key === 'hook' ? 0.35 : 0.21);
-      if (wall) {
+      if (item.key === 'echo') {
+        robot.echo = { point: contact, at: state.time + ECHO_DELAY };
+        effect('echo', contact, contact, ECHO_DELAY, { radius: ECHO_RADIUS });
+        enemy.thinkAt = 0;
+        continue;
+      }
+      effect(item.key, robot, bounce ? enemy : contact, item.key === 'hook' ? 0.35 : 0.21, { bounce });
+      if (wall && !bounce) {
         robot.pull = { target: contact, until: state.time + 0.6, stop: RADIUS };
         effect('tether', robot, contact, 0.5, { attached: robot.id });
         log(robot, 'event.hookWall');
@@ -524,7 +648,13 @@ export function createBattle(loadouts, {
         continue;
       }
       const critical = item.key === 'pistol' && random() < 0.18;
-      damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${item.key}.name`);
+      const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${item.key}.name`);
+      if (returned || state.result) continue;
+      if (item.key === 'pulse') {
+        const angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x);
+        move(enemy, { x: enemy.x + 58 * Math.cos(angle), y: enemy.y + 58 * Math.sin(angle) }, 58, robot);
+        enemy.thinkAt = 0;
+      }
       if (item.key === 'flame') {
         enemy.burn = { from: robot, until: state.time + 3, next: enemy.burn?.next ?? state.time + 0.25 };
       }
@@ -561,6 +691,13 @@ export function createBattle(loadouts, {
     for (const robot of order) {
       useTools(robot, robots[1 - robot.id]);
       walk(robot, robots[1 - robot.id], delta);
+      const hologram = robot.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
+      if (hologram) {
+        const { decoy, heading } = hologram;
+        const next = { x: decoy.x + Math.cos(heading) * 75 * delta,
+          y: decoy.y + Math.sin(heading) * 75 * delta };
+        if (!blocked(decoy, next, arena.walls)) Object.assign(decoy, next);
+      }
     }
     for (let index = 0; index < state.drops.length;) {
       const drop = state.drops[index];
@@ -583,6 +720,17 @@ export function createBattle(loadouts, {
         if (state.result) return;
       }
       if (robot.burn?.until <= state.time + 1e-8) robot.burn = null;
+    }
+    for (const robot of order) {
+      if (!robot.echo || robot.echo.at > state.time) continue;
+      const { point } = robot.echo;
+      robot.echo = null;
+      effect('echoBlast', point, point, 0.25, { radius: ECHO_RADIUS });
+      const enemy = robots[1 - robot.id];
+      if (distance(enemy, point) <= ECHO_RADIUS && !blocked(point, enemy, arena.walls)) {
+        damage(robot, enemy, guns.echo.damage, 'event.hit', 'guns.echo.name');
+        if (state.result) return;
+      }
     }
     for (const robot of order) fire(robot, robots[1 - robot.id]);
     if (!state.result && state.time >= state.duration) finish('timeout');

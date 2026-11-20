@@ -52,7 +52,7 @@ Edite [config.js](config.js).
 | `GUNS_QUANTITY` | 1 |
 | `UTILS_QUANTITY` | 1 |
 
-Use HP base e duração positivos. Atualmente é possível instalar de 0 a 5 armas e de 0 a 2 ferramentas distintas por robô. A recarga de cada ferramenta começa no instante da ativação.
+Use HP base e duração positivos. Atualmente é possível instalar de 0 a 8 armas e de 0 a 5 ferramentas distintas por robô. A recarga de cada ferramenta começa no instante da ativação.
 
 ## GitHub Pages
 
