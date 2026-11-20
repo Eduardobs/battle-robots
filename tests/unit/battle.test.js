@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createBattle, EDGE, generateArena, HEIGHT, STEP, WIDTH } from '../../src/battle.js';
+import { createBattle, EDGE, generateArena, HEIGHT, RADIUS, STEP, WIDTH } from '../../src/battle.js';
 import { guns } from '../../src/catalog.js';
 
 function loadout({ hp = 100, speed = 10, attack = 0, defense = 0, evasion = 0, aim = 0,
@@ -45,9 +45,9 @@ test('um movimento rápido para no contato com o adversário', () => {
 test('o dano escala com a razão entre ataque e defesa', () => {
   for (const [attack, defense, multiplier] of [[10, 10, 1], [100, 10, 10], [100, 100, 1], [10, 100, 0.1]]) {
     const { state, step, events } = duel([
-      loadout({ attack, weapons: ['hammer'] }), loadout({ hp: 1000, defense }),
+      loadout({ attack, weapons: ['hammer'] }), loadout({ hp: 1000, defense, speed: 0 }),
     ]);
-    state.robots[1].x = state.robots[0].x + 60;
+    state.robots[1].x = state.robots[0].x + 2 * RADIUS;
     step();
     const damage = guns.hammer.damage * multiplier;
     assert.equal(events.find(event => event.action === 'event.hit')?.damage, damage);
@@ -65,9 +65,9 @@ test('a chance de esquiva depende da razão entre mira e evasão', () => {
   ]) {
     const accuracy = 0.78 + 0.21 * (aim / (aim + 70));
     const { state, step, events } = duel([
-      loadout({ aim, weapons: ['hammer'] }), loadout({ evasion }),
+      loadout({ aim, weapons: ['hammer'] }), loadout({ evasion, speed: 0 }),
     ], { random: () => rollWithinAccuracy * accuracy });
-    state.robots[1].x = state.robots[0].x + 60;
+    state.robots[1].x = state.robots[0].x + 2 * RADIUS;
     step();
     assert.ok(events.some(event => event.action === action));
   }
@@ -109,12 +109,12 @@ test('ao esgotar o tempo, o resultado usa o HP absoluto e trata empates', () => 
   }
 });
 
-test('um disparo letal limita o dano à vida restante e termina em nocaute', () => {
+test('um ataque letal limita o dano à vida restante e termina em nocaute', () => {
   const { state, step, events } = duel([
     loadout({ weapons: ['hammer'] }),
-    loadout({ hp: 10 }),
+    loadout({ hp: 10, speed: 0 }),
   ]);
-  state.robots[1].x = state.robots[0].x + 60;
+  state.robots[1].x = state.robots[0].x + 2 * RADIUS;
   step();
   assert.equal(state.robots[1].hp, 0);
   assert.deepEqual(state.result, { winner: 0, reason: 'knockout' });
@@ -124,12 +124,12 @@ test('um disparo letal limita o dano à vida restante e termina em nocaute', () 
   ]);
 });
 
-test('o escudo reduz o dano e a arma respeita o intervalo entre disparos', () => {
+test('o escudo reduz o dano e a arma respeita o intervalo entre ataques', () => {
   const { state, step, events } = duel([
     loadout({ weapons: ['hammer'] }),
-    loadout({ tools: ['shield'] }),
+    loadout({ tools: ['shield'], speed: 0 }),
   ], { random: () => 0.2 });
-  state.robots[1].x = state.robots[0].x + 60;
+  state.robots[1].x = state.robots[0].x + 2 * RADIUS;
   step();
   assert.equal(state.robots[1].hp, 100 - guns.hammer.damage * 0.55);
   assert.ok(events.some(event => event.action === 'event.activate' && event.item === 'utils.shield.name'));
@@ -174,6 +174,9 @@ for (const strategy of ['distance', 'flank']) {
     Object.assign(enemy, { x: 270, y: 200, goal: enemy, thinkAt: Infinity });
     robot.guns.push({ key: 'hook', ready: 0, expires: 10 });
     step();
+    assert.equal(robot.pull, null);
+    assert.ok(state.projectiles.some(shot => shot.key === 'hook'));
+    for (let frame = 0; frame < 20 && !robot.pull; frame++) step();
     assert.ok(events.some(event => event.action === 'event.hookWall'));
     assert.ok(robot.pull);
     for (let frame = 0; frame < 20; frame++) step();
@@ -182,7 +185,7 @@ for (const strategy of ['distance', 'flank']) {
   });
 
   test(`${strategy} poupa o gancho quando não há parede para recuar`, () => {
-    const { state, step, events } = duel([
+    const { state, step } = duel([
       loadout({ weapons: ['pistol', 'hook'], strategy }), loadout(),
     ]);
     const [robot, enemy] = state.robots;
@@ -190,7 +193,8 @@ for (const strategy of ['distance', 'flank']) {
     step();
     assert.equal(robot.guns[1].ready, 0);
     assert.equal(enemy.pull, null);
-    assert.ok(events.some(event => event.item === 'guns.pistol.name'));
+    assert.ok(state.projectiles.some(shot => shot.key === 'pistol'));
+    assert.ok(!state.projectiles.some(shot => shot.key === 'hook'));
   });
 }
 
@@ -200,8 +204,121 @@ test('o canhão de pulso causa dano e empurra o alvo para longe', () => {
   Object.assign(attacker, { x: 100, y: 50 });
   Object.assign(target, { x: 150, y: 50 });
   step();
+  assert.equal(target.hp, 100);
+  assert.equal(target.x, 150);
+  for (let frame = 0; frame < 3; frame++) step();
   assert.equal(target.hp, 95);
   assert.equal(target.x, 208);
+});
+
+test('a pistola viaja mais rápido que o disco e ambos causam dano só no impacto', () => {
+  const { state, step } = duel([
+    loadout({ weapons: ['pistol', 'disc'], speed: 0 }), loadout({ speed: 0 }),
+  ], { random: () => 0.2 });
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 50 });
+  Object.assign(target, { x: 280, y: 50 });
+  step();
+  assert.equal(target.hp, 100);
+  const [bullet, disc] = state.projectiles;
+  step();
+  assert.ok(Math.abs(bullet.x - (100 + guns.pistol.projectileSpeed * STEP)) < 1e-8);
+  assert.ok(Math.abs(disc.x - (100 + guns.disc.projectileSpeed * STEP)) < 1e-8);
+  assert.ok(bullet.x > disc.x);
+  for (let frame = 0; frame < 8; frame++) step();
+  assert.equal(target.hp, 100 - guns.pistol.damage);
+  for (let frame = 0; frame < 25; frame++) step();
+  assert.equal(target.hp, 100 - guns.pistol.damage - guns.disc.damage);
+});
+
+test('um disparo já lançado passa pelo ponto onde o alvo estava', () => {
+  const { state, step, events } = duel([
+    loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 0 }),
+  ]);
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 50 });
+  Object.assign(target, { x: 280, y: 50 });
+  step();
+  target.y = 100;
+  for (let frame = 0; frame < 85; frame++) step();
+  assert.equal(state.projectiles.length, 0);
+  assert.equal(target.hp, 100);
+  assert.ok(events.some(event => event.action === 'event.miss' && event.item === 'guns.disc.name'));
+});
+
+test('o disco percorre os dois trechos do ricochete para acertar atrás da parede', () => {
+  const { state, step } = duel([
+    loadout({ weapons: ['pistol', 'disc'], speed: 0 }), loadout({ speed: 0 }),
+  ]);
+  state.walls.splice(0, state.walls.length,
+    { x: 175, y: 85, w: 10, h: 40 }, { x: 130, y: 150, w: 105, h: 20 });
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 100 });
+  Object.assign(target, { x: 260, y: 100 });
+  step();
+  assert.deepEqual(state.projectiles.map(shot => shot.key), ['disc']);
+  const [disc] = state.projectiles;
+  for (let frame = 0; frame < 18; frame++) step();
+  assert.ok(disc.x > 180 && disc.y < 150);
+  assert.equal(target.hp, 100);
+  for (let frame = 0; frame < 18; frame++) step();
+  assert.equal(target.hp, 100 - guns.disc.damage);
+});
+
+test('o disco rebate na primeira parede mesmo se o alvo sair da trajetória', () => {
+  const { state, step, events } = duel([
+    loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 0 }),
+  ]);
+  state.walls.splice(0, state.walls.length,
+    { x: 300, y: 80, w: 10, h: 40 }, { x: 70, y: 80, w: 10, h: 40 });
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 100 });
+  Object.assign(target, { x: 200, y: 100 });
+  step();
+  target.y = 150;
+
+  for (let frame = 0; frame < 37; frame++) step();
+  assert.equal(state.projectiles.length, 1);
+  assert.equal(state.projectiles[0].x, 296.5);
+  assert.ok(!events.some(event => event.action === 'event.miss'));
+
+  for (let frame = 0; frame < 40; frame++) step();
+  assert.equal(state.projectiles.length, 0);
+  assert.equal(events.filter(event => event.action === 'event.miss').length, 1);
+});
+
+test('o disco pode rebater na parede que protege o alvo sem uma rota de ricochete até ele', () => {
+  const { state, step } = duel([
+    loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 0 }),
+  ]);
+  state.walls.splice(0, state.walls.length, { x: 200, y: 70, w: 10, h: 60 });
+  const [attacker, target] = state.robots;
+  Object.assign(attacker, { x: 100, y: 100 });
+  Object.assign(target, { x: 260, y: 100 });
+  step();
+  for (let frame = 0; frame < 19; frame++) step();
+  assert.equal(state.projectiles.length, 1);
+  assert.equal(state.projectiles[0].x, 195.5);
+  assert.equal(target.hp, 100);
+});
+
+test('a serra e o martelo causam dano imediato apenas no contato', () => {
+  for (const [weapon, strategy] of [['saw', 'distance'], ['hammer', 'advance']]) {
+    const { state, step } = duel([
+      loadout({ weapons: [weapon], strategy, speed: 0 }), loadout({ speed: 0 }),
+    ]);
+    const [attacker, target] = state.robots;
+    Object.assign(attacker, { x: 450, y: 50 });
+    Object.assign(target, { x: 450 + 2 * RADIUS + 5, y: 50, goal: target, thinkAt: Infinity });
+    step();
+    assert.equal(target.hp, 100);
+    assert.equal(attacker.guns[0].ready, 0);
+    attacker.stats.speed = 60;
+    step();
+    assert.equal(target.x - attacker.x, 2 * RADIUS);
+    assert.equal(target.hp, 100 - guns[weapon].damage);
+    assert.equal(state.projectiles.length, 0);
+  }
 });
 
 test('o eco atinge apenas se o alvo permanecer na área até o pulso', () => {

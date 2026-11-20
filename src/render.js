@@ -157,44 +157,44 @@ export function createRenderer(canvas) {
       ctx.fillText(`−${damageFormat.format(event.amount)}`, from.x + 16, from.y - 15 - progress * 16);
     } else if (kind === 'dodge') {
       circle(ctx, '#a8efff', from.x, from.y, 20 + progress * 10, 2);
-    } else if (kind === 'hook' || kind === 'tether') {
-      const source = kind === 'tether' ? state.robots[event.attached] : from;
-      const target = kind === 'tether' && event.victim !== undefined ? state.robots[event.victim] : to;
+    } else if (kind === 'tether') {
+      const source = state.robots[event.attached];
+      const target = event.victim === undefined ? to : state.robots[event.victim];
       line(ctx, '#dee4de', 2, source, target);
       circle(ctx, '#fff0a9', target.x, target.y, 4, 2);
     } else if (kind === 'echo' || kind === 'echoBlast') {
       ctx.globalAlpha = kind === 'echo' ? 0.55 + progress * 0.45 : 1 - progress;
       circle(ctx, '#ff83e8', to.x, to.y, event.radius, 2);
       circle(ctx, '#ff83e8', to.x, to.y, Math.max(1, progress * event.radius), 3);
-    } else if (kind === 'disc') {
-      line(ctx, '#e2ff96', 3, from, event.bounce || to);
-      if (event.bounce) {
-        line(ctx, '#e2ff96', 3, event.bounce, to);
-        circle(ctx, '#fff5c8', event.bounce.x, event.bounce.y, 8, 3);
-      }
-      circle(ctx, '#e2ff96', to.x, to.y, 5, 2);
-    } else if (kind === 'pulse' || kind === 'beaconReturn') {
+    } else if (kind === 'beaconReturn') {
       line(ctx, '#82eeff', 3, from, to);
       circle(ctx, '#82eeff', to.x, to.y, 10 + progress * 20, 2);
-    } else if (kind === 'pistol') {
-      const tip = Math.min(1, progress * 2 + 0.35);
-      const head = { x: from.x + (to.x - from.x) * tip, y: from.y + (to.y - from.y) * tip };
-      line(ctx, '#e8fb9b', 2, from, head);
-      circle(ctx, '#e7fdba', head.x, head.y, 3);
-    } else if (kind === 'flame') {
-      line(ctx, '#c65f2a', 12, from, to);
-      line(ctx, '#ffd57e', 4, from, to);
-      for (let index = 1; index <= 8; index++) {
-        const ratio = index / 9;
-        const x = from.x + (to.x - from.x) * ratio;
-        const y = from.y + (to.y - from.y) * ratio;
-        circle(ctx, index % 2 ? '#ff963a' : '#ffbe58', x, y + 4 * Math.sin(index * 3 + progress * 7), 3 + ratio * 5);
-      }
     } else {
-      circle(ctx, kind === 'saw' ? '#e8e5cf' : '#ffaf65', to.x, to.y, 12 + progress * 14, 4);
-      line(ctx, '#eee1a8', kind === 'hammer' ? 7 : 3, from, to);
+      const contact = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      circle(ctx, kind === 'saw' ? '#e8e5cf' : '#ffaf65', contact.x, contact.y, 5 + progress * 11, 3);
+      line(ctx, '#eee1a8', kind === 'hammer' ? 7 : 3, from, contact);
     }
     ctx.restore();
+  }
+
+  function drawProjectile(shot) {
+    const { key, x, y, from } = shot;
+    if (key === 'hook') {
+      line(ctx, '#dee4de', 2, shot.robot, shot);
+      circle(ctx, '#fff0a9', x, y, 4, 2);
+    } else if (key === 'disc') {
+      circle(ctx, '#e2ff96', x, y, 6, 2);
+      circle(ctx, '#fff5c8', x, y, 2);
+    } else if (key === 'pulse') {
+      circle(ctx, '#82eeff', x, y, 8, 2);
+    } else {
+      const flame = key === 'flame';
+      const span = Math.hypot(x - from.x, y - from.y);
+      const scale = span > 0 ? Math.min(1, (flame ? 14 : 24) / span) : 0;
+      const tail = { x: x + (from.x - x) * scale, y: y + (from.y - y) * scale };
+      line(ctx, flame ? '#ff963a' : '#e8fb9b', flame ? 8 : 2, tail, shot);
+      circle(ctx, flame ? '#ffd57e' : '#e7fdba', x, y, flame ? 5 : 3);
+    }
   }
 
   function drawHP(robot, { x, y }, scale) {
@@ -243,6 +243,7 @@ export function createRenderer(canvas) {
       }
       drawRobot(robot, state.time);
     }
+    state.projectiles.forEach(drawProjectile);
     state.effects.forEach(event => drawEffect(event, state));
     const scale = Math.max(1, WIDTH * 0.83 / Math.max(canvas.clientWidth, 250));
     const inset = EDGE + 33 * scale;

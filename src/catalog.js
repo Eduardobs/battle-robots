@@ -8,13 +8,13 @@ export const attributes = [
 ];
 
 export const guns = {
-  flame: { icon: 'flame', range: 195, interval: 0.45, damage: 4 },
-  pistol: { icon: 'pistol', range: 340, interval: 1.1, damage: 11 },
-  saw: { icon: 'saw', range: 64, interval: 0.23, damage: 3 },
-  hammer: { icon: 'hammer', range: 76, interval: 1.7, damage: 25 },
-  hook: { icon: 'hook', range: 230, interval: 1.8, damage: 5 },
-  pulse: { icon: 'wind', range: 115, interval: 1.5, damage: 5 },
-  disc: { icon: 'saw', range: 440, interval: 1.6, damage: 10 },
+  flame: { icon: 'flame', range: 195, interval: 0.45, damage: 4, projectileSpeed: 480 },
+  pistol: { icon: 'pistol', range: 340, interval: 1.1, damage: 11, projectileSpeed: 1200 },
+  saw: { icon: 'saw', interval: 0.23, damage: 3 },
+  hammer: { icon: 'hammer', interval: 1.7, damage: 25 },
+  hook: { icon: 'hook', range: 230, interval: 1.8, damage: 5, projectileSpeed: 850 },
+  pulse: { icon: 'wind', range: 115, interval: 1.5, damage: 5, projectileSpeed: 660 },
+  disc: { icon: 'saw', range: 440, interval: 1.6, damage: 10, projectileSpeed: 330 },
   echo: { icon: 'target', range: 250, interval: 2.4, damage: 16 },
 };
 

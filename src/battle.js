@@ -8,6 +8,8 @@ export const RADIUS = 19;
 export const STEP = 1 / 60;
 
 const SPEED_PER_POINT = 7;
+const CONTACT_RANGE = RADIUS * 2;
+const weaponRange = key => guns[key].range ?? CONTACT_RANGE;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -20,7 +22,7 @@ const expand = (rect, pad) => ({
 
 function firingRange(robot) {
   const ranges = robot.guns.filter(item => !keepsRange(robot) || item.key !== 'hook' ||
-    robot.guns.length === 1).map(item => guns[item.key].range);
+    robot.guns.length === 1).map(item => weaponRange(item.key));
   if (!ranges.length) return RADIUS * 2 + 4;
   return keepsRange(robot) ? Math.max(...ranges) : Math.min(...ranges);
 }
@@ -58,7 +60,52 @@ function pointAlong(a, b, fraction) {
   return { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction };
 }
 
-const ECHO_DELAY = 0.65;
+function projectileLeg(from, direction, range, walls, previousWall) {
+  const { x, y } = direction;
+  const limitX = x < 0 ? EDGE : WIDTH - EDGE;
+  const limitY = y < 0 ? EDGE : HEIGHT - EDGE;
+  const spanX = x ? (limitX - from.x) / x : Infinity;
+  const spanY = y ? (limitY - from.y) / y : Infinity;
+  const span = Math.min(range, spanX, spanY);
+  const far = { x: from.x + x * span, y: from.y + y * span };
+  let fraction = 1;
+  let surface = null;
+  for (const wall of walls) {
+    if (wall === previousWall) continue;
+    const entry = impact(from, far, wall);
+    if (entry !== null && entry <= fraction) {
+      fraction = entry;
+      surface = wall;
+    }
+  }
+
+  const to = pointAlong(from, far, fraction);
+  const flipsX = surface
+    ? x && Math.abs(to.x - (x > 0 ? surface.x : surface.x + surface.w)) < 1e-8
+    : span === spanX;
+  const flipsY = surface
+    ? y && Math.abs(to.y - (y > 0 ? surface.y : surface.y + surface.h)) < 1e-8
+    : span === spanY;
+  const reflection = flipsX || flipsY ? { x: flipsX ? -x : x, y: flipsY ? -y : y } : null;
+  return { to, reflection, surface };
+}
+
+function robotImpact(from, to, target) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const x = from.x - target.x;
+  const y = from.y - target.y;
+  const gap = x * x + y * y - RADIUS ** 2;
+  if (gap <= 0) return 0;
+  const lengthSquared = dx * dx + dy * dy;
+  const projection = x * dx + y * dy;
+  const discriminant = projection ** 2 - lengthSquared * gap;
+  if (!lengthSquared || projection >= 0 || discriminant < 0) return Infinity;
+  const entry = (-projection - Math.sqrt(discriminant)) / lengthSquared;
+  return entry <= 1 ? entry : Infinity;
+}
+
+const ECHO_DELAY = 0.5;
 const ECHO_RADIUS = 36;
 
 function bouncePoint(from, to, walls, range) {
@@ -72,6 +119,7 @@ function bouncePoint(from, to, walls, range) {
         if ((from[axis] - face) * side <= 0 || (to[axis] - face) * side <= 0) continue;
         const mirror = { ...to, [axis]: 2 * face - to[axis] };
         const point = pointAlong(from, mirror, (face - from[axis]) / (mirror[axis] - from[axis]));
+        point[axis] = face;
         if (point[cross] < wall[cross] || point[cross] > wall[cross] + wall[crossLength]) continue;
         const gap = distance(from, point) + distance(point, to);
         const outside = { ...point, [axis]: face + side * 0.001 };
@@ -162,7 +210,7 @@ export function createBattle(loadouts, {
     baseStats: { ...loadout.stats }, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
     waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false,
   }));
-  const state = { ...arena, robots, drops: [], effects: [], time: 0, duration, result: null };
+  const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
 
   let nextDrop = 5;
   const pick = list => list[Math.floor(random() * list.length)];
@@ -277,7 +325,7 @@ export function createBattle(loadouts, {
     const span = distance(robot, enemy);
     const nearCorner = Math.min(robot.x, WIDTH - robot.x) < 145 &&
       Math.min(robot.y, HEIGHT - robot.y) < 120;
-    const threat = Math.max(100, ...enemy.guns.map(item => guns[item.key].range));
+    const threat = Math.max(100, ...enemy.guns.map(item => weaponRange(item.key)));
     const danger = span < threat && (robot.hp < robot.stats.hp * 0.4 ||
       (robot.strategy === 'distance' && span < range * 0.6));
     let intent;
@@ -482,13 +530,13 @@ export function createBattle(loadouts, {
     const span = distance(robot, enemy);
     const clear = !blocked(robot, enemy, state.walls);
     const firingDistance = firingRange(robot);
-    const preferred = firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83);
+    const preferred = Math.max(CONTACT_RANGE, firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83));
     const speed = movementSpeed(robot);
     if (state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
     const prior = { x: robot.x, y: robot.y };
     let target = robot;
     let moving = false;
-    if (keepsRange(robot) && robot.goal === enemy && clear) {
+    if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE) {
       let remaining = speed * dt;
       while (remaining > 0) {
         target = rangedTarget(robot, enemy, distance(robot, enemy), firingDistance);
@@ -513,7 +561,7 @@ export function createBattle(loadouts, {
 
   function useTools(robot, enemy) {
     const span = distance(robot, enemy);
-    const enemyRange = Math.max(0, ...enemy.guns.map(item => guns[item.key].range));
+    const enemyRange = Math.max(0, ...enemy.guns.map(item => weaponRange(item.key)));
     for (const item of robot.utils) {
       const tool = utils[item.key];
       if (item.until && item.until <= state.time) {
@@ -521,7 +569,7 @@ export function createBattle(loadouts, {
         log(robot, 'event.expireTool', `utils.${item.key}.name`);
       }
       const shouldUse = item.key === 'shield'
-        ? (enemyRange >= span && !blocked(robot, enemy, state.walls)) || robot.burn
+        ? (enemyRange + 1e-8 >= span && !blocked(robot, enemy, state.walls)) || robot.burn
         : item.key === 'beacon'
           ? robot.intent === 'drop' && state.drops.includes(robot.goal) && blocked(robot, enemy, state.walls)
           : item.key === 'hologram'
@@ -578,90 +626,142 @@ export function createBattle(loadouts, {
     return anchor;
   }
 
+  function hit(robot, enemy, key, angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x)) {
+    const weapon = guns[key];
+    const aim = robot.stats.aim / (robot.stats.aim + 70);
+    const dodgeChance = enemy.stats.evasion > 0
+      ? clamp(1 - robot.stats.aim / enemy.stats.evasion, 0, 1)
+      : 0;
+    const roll = random();
+    const accuracy = 0.78 + 0.21 * aim;
+    if (roll >= accuracy) {
+      log(robot, 'event.miss', `guns.${key}.name`);
+      return;
+    }
+    if (roll >= accuracy * (1 - dodgeChance)) {
+      const side = angle + Math.PI / 2;
+      const dx = Math.cos(side) * 11;
+      const dy = Math.sin(side) * 11;
+      if (!move(enemy, { x: enemy.x + dx, y: enemy.y + dy }, 11, robot)) {
+        move(enemy, { x: enemy.x - dx, y: enemy.y - dy }, 11, robot);
+      }
+      log(robot, 'event.evaded', `guns.${key}.name`);
+      log(enemy, 'event.dodge', `guns.${key}.name`);
+      effect('dodge', enemy, enemy, 0.35);
+      return;
+    }
+    const critical = key === 'pistol' && random() < 0.18;
+    const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${key}.name`);
+    if (returned || state.result) return;
+    if (key === 'pulse') {
+      move(enemy, { x: enemy.x + 58 * Math.cos(angle), y: enemy.y + 58 * Math.sin(angle) }, 58, robot);
+      enemy.thinkAt = 0;
+    }
+    if (key === 'flame') {
+      enemy.burn = { from: robot, until: state.time + 3, next: enemy.burn?.next ?? state.time + 0.25 };
+    }
+    if (key === 'hook') {
+      enemy.pull = { target: robot, until: state.time + 0.55, stop: RADIUS * 2 };
+      effect('tether', robot, enemy, 0.5, { attached: robot.id, victim: enemy.id });
+      log(robot, 'event.hookEnemy');
+    }
+  }
+
+  function launch(robot, key, target, bounce, anchor) {
+    const { range, projectileSpeed } = guns[key];
+    const from = { x: robot.x, y: robot.y };
+    const aim = bounce || target;
+    const span = distance(from, aim) || 1;
+    const direction = { x: (aim.x - from.x) / span, y: (aim.y - from.y) / span };
+    const leg = anchor ? { to: anchor.contact } : projectileLeg(from, direction, range, state.walls);
+    state.projectiles.push({
+      key, robot, speed: projectileSpeed, anchor, x: from.x, y: from.y,
+      from, ...leg, canBounce: key === 'disc', range,
+    });
+  }
+
+  function absorbShot(enemy, hologram) {
+    hologram.until = 0;
+    log(enemy, 'event.decoy');
+  }
+
+  function advanceProjectile(shot, travel) {
+    const { robot, key } = shot;
+    const enemy = robots[1 - robot.id];
+    while (travel > 0) {
+      const span = distance(shot, shot.to);
+      const next = travel >= span ? shot.to : pointAlong(shot, shot.to, travel / span);
+      const enemyHit = robotImpact(shot, next, enemy);
+      const hologram = enemy.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
+      const decoyHit = hologram ? robotImpact(shot, next, hologram.decoy) : Infinity;
+      if (decoyHit <= enemyHit && decoyHit !== Infinity) {
+        absorbShot(enemy, hologram);
+        return false;
+      }
+      if (enemyHit !== Infinity) {
+        hit(robot, enemy, key, Math.atan2(shot.to.y - shot.from.y, shot.to.x - shot.from.x));
+        return false;
+      }
+      Object.assign(shot, { x: next.x, y: next.y });
+      if (travel < span) return true;
+      const remainingRange = shot.range - distance(shot.from, shot.to);
+      if (shot.canBounce && shot.reflection && remainingRange > 1e-8) {
+        travel -= span;
+        shot.from = shot.to;
+        Object.assign(shot, projectileLeg(shot.from, shot.reflection, remainingRange, state.walls, shot.surface),
+          { canBounce: false, range: remainingRange });
+        continue;
+      }
+      if (shot.anchor) {
+        const { contact, landing } = shot.anchor;
+        robot.pull = { target: landing ?? contact, until: state.time + 0.6, stop: landing ? 0.1 : RADIUS };
+        effect('tether', robot, contact, 0.5, { attached: robot.id });
+        log(robot, 'event.hookWall');
+      } else {
+        log(robot, 'event.miss', `guns.${key}.name`);
+      }
+      return false;
+    }
+    return true;
+  }
+
   function fire(robot, enemy) {
     for (const item of robot.guns) {
       if (state.result) break;
-      const weapon = guns[item.key];
+      const { key } = item;
+      const weapon = guns[key];
+      const range = weaponRange(key);
       if (item.ready > state.time) continue;
-      if (item.key === 'hook' && keepsRange(robot)) {
-        const anchor = retreatAnchor(robot, enemy, weapon.range);
+      if (key === 'hook' && keepsRange(robot)) {
+        const anchor = retreatAnchor(robot, enemy, range);
         if (anchor) {
           item.ready = state.time + weapon.interval;
-          robot.pull = { target: anchor.landing, until: state.time + 0.6, stop: 0.1 };
-          effect('hook', robot, anchor.contact, 0.35);
-          effect('tether', robot, anchor.contact, 0.5, { attached: robot.id });
-          log(robot, 'event.hookWall');
+          launch(robot, key, anchor.contact, null, anchor);
           continue;
         }
         if (robot.guns.length > 1) continue;
       }
-      const hologram = item.key !== 'echo' && enemy.utils.find(tool =>
+      if (key === 'echo' && robot.echo) continue;
+      const hologram = key !== 'echo' && enemy.utils.find(tool =>
         tool.key === 'hologram' && tool.until > state.time &&
-        distance(robot, tool.decoy) <= weapon.range && !blocked(robot, tool.decoy, state.walls));
-      if (hologram) {
-        hologram.until = 0;
-        item.ready = state.time + weapon.interval;
-        effect(item.key, robot, hologram.decoy, 0.21);
-        log(enemy, 'event.decoy');
-        continue;
-      }
-      if (item.key === 'echo' && robot.echo) continue;
-      const contact = firstContact(robot, enemy, state.walls);
-      const wall = distance(contact, enemy) > 0.1;
-      if (distance(robot, contact) > weapon.range) continue;
-      const bounce = wall && item.key === 'disc' && bouncePoint(robot, enemy, state.walls, weapon.range);
-      if (wall && !bounce && item.key !== 'hook') continue;
+        distance(robot, tool.decoy) <= range + 1e-8 && !blocked(robot, tool.decoy, state.walls));
+      const target = hologram ? hologram.decoy : enemy;
+      const contact = firstContact(robot, target, state.walls);
+      const wall = distance(contact, target) > 0.1;
+      if (distance(robot, contact) > range + 1e-8) continue;
+      const bounce = wall && key === 'disc' && bouncePoint(robot, target, state.walls, range);
+      if (wall && key !== 'disc' && key !== 'hook') continue;
       item.ready = state.time + weapon.interval;
-      if (item.key === 'echo') {
+      if (key === 'echo') {
         robot.echo = { point: contact, at: state.time + ECHO_DELAY };
         effect('echo', contact, contact, ECHO_DELAY, { radius: ECHO_RADIUS });
         enemy.thinkAt = 0;
-        continue;
-      }
-      effect(item.key, robot, bounce ? enemy : contact, item.key === 'hook' ? 0.35 : 0.21, { bounce });
-      if (wall && !bounce) {
-        robot.pull = { target: contact, until: state.time + 0.6, stop: RADIUS };
-        effect('tether', robot, contact, 0.5, { attached: robot.id });
-        log(robot, 'event.hookWall');
-        continue;
-      }
-      const aim = robot.stats.aim / (robot.stats.aim + 70);
-      const dodgeChance = enemy.stats.evasion > 0
-        ? clamp(1 - robot.stats.aim / enemy.stats.evasion, 0, 1)
-        : 0;
-      const roll = random();
-      const accuracy = 0.78 + 0.21 * aim;
-      if (roll >= accuracy) {
-        log(robot, 'event.miss', `guns.${item.key}.name`);
-        continue;
-      }
-      if (roll >= accuracy * (1 - dodgeChance)) {
-        const side = Math.atan2(enemy.y - robot.y, enemy.x - robot.x) + Math.PI / 2;
-        const dx = Math.cos(side) * 11;
-        const dy = Math.sin(side) * 11;
-        if (!move(enemy, { x: enemy.x + dx, y: enemy.y + dy }, 11, robot)) {
-          move(enemy, { x: enemy.x - dx, y: enemy.y - dy }, 11, robot);
-        }
-        log(robot, 'event.evaded', `guns.${item.key}.name`);
-        log(enemy, 'event.dodge', `guns.${item.key}.name`);
-        effect('dodge', enemy, enemy, 0.35);
-        continue;
-      }
-      const critical = item.key === 'pistol' && random() < 0.18;
-      const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${item.key}.name`);
-      if (returned || state.result) continue;
-      if (item.key === 'pulse') {
-        const angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x);
-        move(enemy, { x: enemy.x + 58 * Math.cos(angle), y: enemy.y + 58 * Math.sin(angle) }, 58, robot);
-        enemy.thinkAt = 0;
-      }
-      if (item.key === 'flame') {
-        enemy.burn = { from: robot, until: state.time + 3, next: enemy.burn?.next ?? state.time + 0.25 };
-      }
-      if (item.key === 'hook') {
-        enemy.pull = { target: robot, until: state.time + 0.55, stop: RADIUS * 2 };
-        effect('tether', robot, enemy, 0.5, { attached: robot.id, victim: enemy.id });
-        log(robot, 'event.hookEnemy');
+      } else if (weapon.projectileSpeed) {
+        launch(robot, key, target, bounce, wall && key === 'hook' ? { contact } : null);
+      } else {
+        effect(key, robot, target, 0.21);
+        if (hologram) absorbShot(enemy, hologram);
+        else hit(robot, enemy, key);
       }
     }
   }
@@ -732,6 +832,8 @@ export function createBattle(loadouts, {
         if (state.result) return;
       }
     }
+    state.projectiles = state.projectiles.filter(shot =>
+      !state.result && advanceProjectile(shot, shot.speed * delta));
     for (const robot of order) fire(robot, robots[1 - robot.id]);
     if (!state.result && state.time >= state.duration) finish('timeout');
   }
