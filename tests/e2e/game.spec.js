@@ -244,3 +244,51 @@ test('a batalha pode ser pausada, retomada e encerrada durante a pausa', async (
   await page.clock.runFor(2500);
   await expect(countdown).toHaveText(finalTime);
 });
+
+test('o cooldown aparece ao lado do golpe de cada robô e acompanha o tempo da batalha', async ({ page }) => {
+  const startTime = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({ time: startTime });
+  await page.clock.pauseAt(new Date(startTime.getTime() + 1000));
+  await page.addInitScript(() => {
+    let seed = 3;
+    Math.random = () => ((seed = (1664525 * seed + 1013904223) >>> 0) / 2 ** 32);
+  });
+  await page.goto('/');
+  await page.locator('#language').selectOption('pt-br');
+  for (const id of [0, 1]) {
+    const speed = page.locator(`[data-attribute="speed"] input[type="number"]`).nth(id);
+    await speed.fill(String(ATTRIBUTES_BASE + 100));
+    await speed.press('Enter');
+  }
+  const ready = page.getByRole('button', { name: 'Pronto', exact: true });
+  await ready.first().press('Enter');
+  await ready.first().press('Enter');
+
+  const red = page.locator('#robot-details-0 li').filter({ hasText: 'Lança-chamas' }).locator('.weapon-cooldown');
+  const blue = page.locator('#robot-details-1 li').filter({ hasText: 'Pistola' }).locator('.weapon-cooldown');
+  await expect(red).toBeHidden();
+  await expect(blue).toBeHidden();
+
+  await page.clock.runFor(1600);
+  await expect(blue).toHaveText(/^1,0\d$/);
+  await page.clock.runFor(100);
+  await expect(blue).toHaveText(/^0,\d{2}$/);
+  await expect(red).toBeHidden();
+  await page.locator('#pause-battle').press('Enter');
+  const pausedCooldown = await blue.textContent();
+  await page.clock.runFor(500);
+  await expect(blue).toHaveText(pausedCooldown);
+
+  await page.locator('#pause-battle').press('Enter');
+  await page.clock.runFor(150);
+  await expect(blue).toHaveText(/^0,\d{2}$/);
+  expect(await blue.textContent()).not.toBe(pausedCooldown);
+
+  await page.clock.runFor(2050);
+  await expect(blue).toBeHidden();
+  await page.clock.runFor(250);
+  await expect(red).toHaveText(/^0,\d{2}$/);
+  await page.locator('#finish-battle').press('Enter');
+  await expect(red).toBeHidden();
+  await expect(blue).toBeHidden();
+});

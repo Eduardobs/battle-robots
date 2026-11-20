@@ -7,7 +7,7 @@ export const EDGE = 18;
 export const RADIUS = 19;
 export const STEP = 1 / 60;
 
-const SPEED_PER_POINT = 7;
+const SPEED_PER_POINT = 1.5;
 const CONTACT_RANGE = RADIUS * 2;
 const weaponRange = key => guns[key].range ?? CONTACT_RANGE;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];

@@ -421,8 +421,7 @@ function buildScoreboard() {
   }));
 }
 
-function updateRobotDetails(robot) {
-  const panel = robotDetails[robot.id];
+function renderRobotDetails(panel, robot) {
   const signature = JSON.stringify([language, robot.stats, Object.keys(robot.boosts),
     robot.guns.map(item => [item.key, item.expires]), robot.utils.map(item => [item.key, item.expires])]);
   if (panel.dataset.signature === signature) return;
@@ -439,11 +438,24 @@ function updateRobotDetails(robot) {
   const equipment = [['guns', 'weapon'], ['utils', 'tool']].map(([kind, label]) => {
     const slots = robot[kind].map(({ key, expires }) => `<li>
       ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
-        ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span></li>`).join('');
+        ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>${kind === 'guns'
+        ? '<span class="weapon-cooldown"></span>' : ''}</li>`).join('');
     return `<h4>${t(label)}</h4><ol class="battle-slots">${slots || '<li>—</li>'}</ol>`;
   }).join('');
   panel.innerHTML = `<h3 id="robot-title-${robot.id}">${pilotName(robot.id)}</h3>
     <h4>${t('attributes')}</h4><dl class="battle-stats">${statRows}</dl>${equipment}`;
+}
+
+function updateRobotDetails({ robots, time, result }) {
+  for (const robot of robots) {
+    const panel = robotDetails[robot.id];
+    renderRobotDetails(panel, robot);
+    panel.querySelectorAll('.weapon-cooldown').forEach((counter, index) => {
+      const remaining = result ? 0 : Math.round((robot.guns[index].ready - time) * 100);
+      const text = remaining > 0 ? (remaining / 100).toFixed(2).replace('.', decimalSeparator) : '';
+      if (counter.textContent !== text) counter.textContent = text;
+    });
+  }
 }
 
 function updateScore(state) {
@@ -467,8 +479,8 @@ function updateScore(state) {
       ...robot.utils.filter(item => item.until > state.time).map(item => t(`utils.${item.key}.name`)),
     ].filter(Boolean).join(' · ');
     if (score.tools.textContent !== tools) score.tools.textContent = tools;
-    updateRobotDetails(robot);
   });
+  updateRobotDetails(state);
 }
 
 function updateBattleControls() {
@@ -502,6 +514,8 @@ function frame(timestamp) {
     if (state.result || state.time >= nextScore) {
       updateScore(state);
       nextScore = state.time + SCORE_INTERVAL;
+    } else {
+      updateRobotDetails(state);
     }
     flushEvents();
   }
