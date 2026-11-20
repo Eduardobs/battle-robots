@@ -579,7 +579,7 @@ for (const weapon of ['hammer', 'pulse', 'nitrogen']) {
     target.guns.push({ key: 'pistol', ready: 0 });
     target.utils.push({ key: 'shield', ready: 0, until: 0 });
     const frozen = weapon === 'nitrogen';
-    step((frozen ? 2 : 3) - STEP);
+    step(guns[weapon].controlDuration - STEP);
     assert.deepEqual({ x: target.x, y: target.y }, start);
     assert.equal(target.guns[0].ready, 0);
     assert.equal(target.utils[0].ready, 0);
@@ -595,3 +595,33 @@ for (const weapon of ['hammer', 'pulse', 'nitrogen']) {
     }
   });
 }
+
+test('armas de controle causam dano sem encadear efeitos e voltam a imobilizar após a recuperação', () => {
+  const { step, state, attacker, target } = statusDuel('hammer');
+  const lockedUntil = target.lockedUntil;
+  const startX = target.x;
+  attacker.guns.push(
+    { key: 'nitrogen', ready: 0 },
+    { key: 'pulse', ready: lockedUntil },
+    { key: 'hook', ready: lockedUntil },
+  );
+
+  step();
+  step(0.1);
+  assert.equal(target.hp, 100 - guns.hammer.damage - guns.nitrogen.damage);
+  assert.equal(target.frozenUntil, 0);
+
+  step(lockedUntil - state.time + STEP);
+  target.guns.push({ key: 'pistol', ready: 0 });
+  step(0.1);
+  assert.equal(target.hp, 100 - guns.hammer.damage - guns.nitrogen.damage - guns.pulse.damage - guns.hook.damage);
+  assert.ok(target.guns[0].ready > state.time);
+  assert.equal(target.lockedUntil, lockedUntil);
+  assert.equal(target.x, startX);
+  assert.equal(target.pull, null);
+
+  attacker.guns[0].ready = lockedUntil + 0.75;
+  step(lockedUntil + 0.75 - state.time + STEP);
+  assert.ok(target.lockedUntil > state.time);
+  assert.equal(target.hp, 100 - 2 * guns.hammer.damage - guns.nitrogen.damage - guns.pulse.damage - guns.hook.damage);
+});

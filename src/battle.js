@@ -26,7 +26,8 @@ export function createBattle(loadouts, {
       guns: loadout.guns.map(key => ({ key, ready: 0 })),
       utils: loadout.utils.map(key => ({ key, ready: 0, until: 0 })),
       baseStats, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
-      waypoint: null, nextPath: 0, burns: [], lockedUntil: 0, frozenUntil: 0, pull: null, muddy: false, moving: false, spikeDamage: 0,
+      waypoint: null, nextPath: 0, burns: [], lockedUntil: 0, frozenUntil: 0, controlProtectedUntil: 0,
+      pull: null, muddy: false, moving: false, spikeDamage: 0,
     };
   });
   const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };

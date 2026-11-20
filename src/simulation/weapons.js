@@ -1,12 +1,11 @@
 import { ATTRIBUTES_BASE } from '../../config.js';
 import { guns } from '../catalog.js';
 import { RADIUS } from './arena.js';
-import { ECHO_RADIUS, firingRange, keepsRange, preferredRange, THAW_DURATION, weaponRange } from './combat-rules.js';
+import { CONTROL_RECOVERY, ECHO_RADIUS, firingRange, keepsRange, preferredRange, THAW_DURATION, weaponRange } from './combat-rules.js';
 import { blocked, clamp, distance, firstContact, pointAlong } from './geometry.js';
 import { bouncePoint, projectileLeg, robotImpact } from './trajectories.js';
 
 const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
-const FREEZE_HOLD = 2;
 const ECHO_DELAY = 0.5;
 
 export function createWeapons(state, navigation, { entersSpikes, move }, { random, damage, effect, log }) {
@@ -54,18 +53,23 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
     const critical = key === 'pistol' && random() < 0.18;
     const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${key}.name`);
     if (state.result) return;
-    if (key === 'hammer' || key === 'pulse') enemy.lockedUntil = state.time + 3;
-    if (key === 'nitrogen') enemy.frozenUntil = state.time + FREEZE_HOLD + THAW_DURATION;
     if (key === 'flame') {
       enemy.burns.push({ from: robot, until: state.time + 3, next: state.time + 0.25 });
     }
-    if (returned) return;
-    if (key === 'pulse') {
+    if (!weapon.controlDuration || enemy.controlProtectedUntil > state.time + 1e-8) return;
+    if (key === 'hook' && returned) return;
+
+    const until = state.time + weapon.controlDuration;
+    if (key === 'hammer' || key === 'pulse') enemy.lockedUntil = until;
+    if (key === 'nitrogen') enemy.frozenUntil = until + THAW_DURATION;
+    enemy.controlProtectedUntil = (key === 'nitrogen' ? enemy.frozenUntil : until) + CONTROL_RECOVERY;
+
+    if (key === 'pulse' && !returned) {
       move(enemy, { x: enemy.x + 58 * Math.cos(angle), y: enemy.y + 58 * Math.sin(angle) }, 58, robot);
       enemy.thinkAt = 0;
     }
     if (key === 'hook') {
-      enemy.pull = { target: robot, until: state.time + 0.55, stop: RADIUS * 2 };
+      enemy.pull = { target: robot, until, stop: RADIUS * 2 };
       effect('tether', robot, enemy, 0.5, { attached: robot.id, victim: enemy.id });
       log(robot, 'event.hookEnemy');
     }
