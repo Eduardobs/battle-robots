@@ -308,3 +308,31 @@ test('o cooldown aparece ao lado do golpe de cada robô e acompanha o tempo da b
   await expect(red).toBeHidden();
   await expect(blue).toBeHidden();
 });
+
+test('os efeitos simultâneos preservam as dimensões do placar e da arena', async ({ page }) => {
+  await page.goto('/');
+  const ready = page.getByRole('button', { name: 'Ready', exact: true });
+  await ready.first().click();
+  await ready.first().click();
+  await page.locator('#pause-battle').click();
+
+  const layout = page.locator('.score, .arena-frame');
+  const bounds = () => layout.evaluateAll(elements => elements.map(element => {
+    const { y, height } = element.getBoundingClientRect();
+    return { y, height };
+  }));
+
+  for (const width of [1280, 800, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    const statuses = page.locator('.battle-statuses').first();
+    const initial = await bounds();
+    await statuses.locator('li').evaluateAll(items => items.forEach(item => item.classList.remove('inactive')));
+    expect(await bounds()).toEqual(initial);
+    for (const details of await page.locator('.robot-details').all()) {
+      expect(await details.evaluate(panel => panel.scrollHeight <= panel.clientHeight
+        && panel.getBoundingClientRect().bottom <= panel.closest('.score').getBoundingClientRect().bottom)).toBe(true);
+    }
+    await statuses.locator('li').evaluateAll(items => items.forEach(item => item.classList.add('inactive')));
+    expect(await bounds()).toEqual(initial);
+  }
+});

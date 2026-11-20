@@ -14,7 +14,6 @@ const result = byId('result');
 const battleControls = byId('battle-controls');
 const pauseButton = byId('pause-battle');
 const finishButton = byId('finish-battle');
-const robotDetails = pilots.map((_, id) => byId(`robot-details-${id}`));
 const render = createRenderer(byId('field'));
 const languageSelect = byId('language');
 const formatHP = value => value > 0 && value < 0.1
@@ -407,8 +406,9 @@ function clearEvents() {
 }
 
 function scorePanel(pilot, id) {
-  return `<div class="score ${pilot.className}"><div><strong>${pilotName(id)}</strong><span class="score-hp"></span></div>
-    <div class="hp-track"><i></i></div><div class="score-tools"></div></div>`;
+  return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${pilotName(id)}</h2><span class="score-hp"></span></div>
+    <div class="hp-track"><i></i></div><div class="score-tools"></div>
+    <div class="robot-details" id="robot-details-${id}"></div></section>`;
 }
 
 function buildScoreboard() {
@@ -418,18 +418,18 @@ function buildScoreboard() {
   countdown = byId('countdown');
   displayedSeconds = undefined;
   scores = [...document.querySelectorAll('.score')].map(score => ({
+    details: score.querySelector('.robot-details'),
     hp: score.querySelector('.score-hp'), bar: score.querySelector('.hp-track i'), tools: score.querySelector('.score-tools'),
   }));
 }
 
 function renderRobotDetails(panel, robot, time) {
-  const statuses = [];
-  if (robot.burns.length) {
-    const count = robot.burns.length;
-    statuses.push(t('status.burned') + (count > 1 ? ` ×${count}` : ''));
-  }
-  if (robot.lockedUntil > time + 1e-8) statuses.push(t('status.locked'));
-  if (robot.frozenUntil > time + 1e-8) statuses.push(t('status.frozen'));
+  const burns = robot.burns.length;
+  const statuses = [
+    [`${t('status.burned')} ×${burns}`, burns > 0],
+    [t('status.locked'), robot.lockedUntil > time + 1e-8],
+    [t('status.frozen'), robot.frozenUntil > time + 1e-8],
+  ];
   const signature = JSON.stringify([language, statuses, robot.stats, Object.keys(robot.boosts),
     robot.guns.map(item => [item.key, item.expires]), robot.utils.map(item => [item.key, item.expires])]);
   if (panel.dataset.signature === signature) return;
@@ -448,16 +448,15 @@ function renderRobotDetails(panel, robot, time) {
       ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
         ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>${kind === 'guns'
         ? '<span class="weapon-cooldown"></span>' : ''}</li>`).join('');
-    return `<h4>${t(label)}</h4><ol class="battle-slots">${slots || '<li>—</li>'}</ol>`;
+    return `<div><h3>${t(label)}</h3><ol class="battle-slots">${slots || '<li>—</li>'}</ol></div>`;
   }).join('');
-  panel.innerHTML = `<h3 id="robot-title-${robot.id}">${pilotName(robot.id)}</h3>
-    ${statuses.length ? `<ul class="battle-statuses">${statuses.map(label => `<li>${label}</li>`).join('')}</ul>` : ''}
-    <h4>${t('attributes')}</h4><dl class="battle-stats">${statRows}</dl>${equipment}`;
+  panel.innerHTML = `<ul class="battle-statuses">${statuses.map(([label, active]) => `<li${active ? '' : ' class="inactive"'}>${label}</li>`).join('')}</ul>
+    <div class="battle-detail-groups"><div><h3>${t('attributes')}</h3><dl class="battle-stats">${statRows}</dl></div>${equipment}</div>`;
 }
 
 function updateRobotDetails({ robots, time, result }) {
   for (const robot of robots) {
-    const panel = robotDetails[robot.id];
+    const panel = scores[robot.id].details;
     renderRobotDetails(panel, robot, time);
     panel.querySelectorAll('.weapon-cooldown').forEach((counter, index) => {
       const remaining = result ? 0 : Math.round((robot.guns[index].ready - time) * 100);

@@ -238,11 +238,13 @@ body:has(#arena:not([hidden])) .topbar-inner,
   padding-inline: 16px;
 }
 
+body:has(#arena:not([hidden])) .topbar-inner { min-height: 44px; flex-wrap: wrap; gap: 4px 10px; }
+
 .shell:has(#arena:not([hidden])) {
   display: grid;
   min-height: 0;
   margin: 0;
-  padding-block: 12px 16px;
+  padding-block: 6px 8px;
 }
 
 #arena {
@@ -252,17 +254,24 @@ body:has(#arena:not([hidden])) .topbar-inner,
   gap: 10px;
 }
 
-.arena-heading { flex-wrap: wrap; margin-bottom: 0; }
+.arena-heading { flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 0; }
 .arena-actions, #battle-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #battle-controls .ready-button { width: auto; min-height: 37px; margin: 0; padding: 0 10px; font-size: 1rem; }
 #finish-battle { border-color: var(--border); background: var(--panel); color: var(--text); }
 #finish-battle:hover { border-color: var(--lime); color: var(--lime); }
-.arena-heading h1 { margin-bottom: 0; font-size: clamp(2.4rem, 4.5vw, 3.5rem); }
+.arena-heading h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 11px; }
 .score, .timer { padding: 9px 12px; border: 1px solid var(--border); background: var(--panel); }
-.score { border-top-color: var(--accent); color: var(--accent); }
+.score {
+  display: grid;
+  align-content: start;
+  min-height: 12rem;
+  padding: 6px 10px;
+  border-top-color: var(--accent);
+  color: var(--accent);
+}
 .score > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
-.score strong { font: 800 1.35rem var(--display); }
+.score h2 { font: 800 1.35rem var(--display); }
 .score-hp, .score-tools { font: 500 .75rem var(--mono); }
 .score-hp { text-align: right; }
 .hp-track { margin-top: 6px; }
@@ -273,45 +282,50 @@ body:has(#arena:not([hidden])) .topbar-inner,
 .timer .eyebrow { font-size: .65rem; }
 .arena-layout {
   display: grid;
-  grid-template-columns: 172px minmax(0, 1fr) clamp(330px, 33vw, 460px);
+  grid-template-columns: minmax(0, 1fr) clamp(330px, 33vw, 460px);
   grid-template-rows: minmax(0, 1fr);
   align-items: start;
   min-height: 0;
   gap: 10px;
 }
-.robot-details-stack {
-  display: grid;
-  gap: 10px;
-  max-height: 100%;
-  overflow-y: auto;
-}
 .robot-details {
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid var(--border);
-  border-top-color: var(--accent);
-  background: var(--panel);
+  color: var(--text);
   font-size: .75rem;
   overflow-wrap: anywhere;
+}
+.battle-detail-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 115px), 1fr));
+  column-gap: 12px;
 }
 .battle-statuses {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
   padding: 0;
-  margin: 6px 0;
+  min-height: 1.25rem;
+  margin: 2px 0 0;
   list-style: none;
 }
 .battle-statuses li {
+  font-variant-numeric: tabular-nums;
   padding: 2px 6px;
   border: 1px solid currentColor;
   border-radius: 4px;
   color: var(--accent);
   font-size: .75rem;
 }
-.robot-details h3 { color: var(--accent); font: 800 1.3rem/1 var(--display); }
-.robot-details h4 {
-  margin: 9px 0 4px;
+.battle-statuses .inactive { visibility: hidden; }
+@media (max-width: 920px) {
+  .battle-detail-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .battle-detail-groups > :first-child { grid-column: 1 / -1; }
+  .battle-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); column-gap: 10px; }
+}
+@media (max-width: 500px) {
+  .battle-detail-groups { grid-template-columns: minmax(0, 1fr); }
+}
+.robot-details h3 {
+  margin: 2px 0;
   color: var(--muted);
   font: 600 .68rem var(--mono);
   text-transform: uppercase;
@@ -322,7 +336,7 @@ body:has(#arena:not([hidden])) .topbar-inner,
   display: flex;
   gap: 4px;
   align-items: baseline;
-  padding: 3px 0;
+  padding: 1px 0;
   border-top: 1px solid var(--border);
 }
 .battle-stats > div { justify-content: space-between; }
@@ -387,9 +401,12 @@ body:has(#arena:not([hidden])) .topbar-inner,
   .bays { grid-template-columns: minmax(0, 1fr); }
   .attribute input[type="range"] { height: 44px; }
   body:has(#arena:not([hidden])) { height: auto; }
+  .scoreboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .timer { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .score > div:first-child { flex-wrap: wrap; }
   .arena-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 220px);
+    grid-template-rows: auto minmax(0, 220px);
   }
   .arena-frame { grid-row: 1; }
   #field { height: auto; }
