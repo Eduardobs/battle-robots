@@ -119,6 +119,7 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   const hp = bay.locator('#hp-0');
   const projectileSpeed = bay.getByRole('slider', { name: 'Projectile speed for Red' });
   const status = bay.locator('.loadout-json').getByRole('status');
+  await expect(bay.locator('#evasion-0, #aim-0')).toHaveCount(0);
 
   await input.fill('{');
   await apply.click();
@@ -127,23 +128,22 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
 
   const config = {
     stats: {
-      hp: ATTRIBUTES_BASE + ATTRIBUTES_POINTS,
+      hp: ATTRIBUTES_BASE + ATTRIBUTES_POINTS - 2,
       defense: ATTRIBUTES_BASE,
       attack: ATTRIBUTES_BASE,
       speed: ATTRIBUTES_BASE,
-      evasion: ATTRIBUTES_BASE,
-      aim: ATTRIBUTES_BASE,
     },
     guns: ['pistol', 'flame', 'saw', 'hammer', 'hook'].slice(0, GUNS_QUANTITY),
     utils: ['nitro', 'shield'].slice(0, UTILS_QUANTITY),
     strategy: 'flank',
   };
-  await input.fill(JSON.stringify({ ...config, stats: { ...config.stats, hp: config.stats.hp + 1 } }));
+  await input.fill(JSON.stringify({ ...config, stats: { ...config.stats, hp: config.stats.hp + 3 } }));
   await apply.click();
   await expect(status).toContainText('Invalid JSON');
   await expect(hp).toHaveValue(String(ATTRIBUTES_BASE));
 
-  await input.fill(JSON.stringify(config));
+  const legacyStats = { ...config.stats, evasion: ATTRIBUTES_BASE + 1, aim: ATTRIBUTES_BASE + 1 };
+  await input.fill(JSON.stringify({ ...config, stats: legacyStats }));
   await apply.click();
   await expect(status).toHaveText('Configuration loaded.');
   await expect(hp).toHaveValue(String(config.stats.hp));
@@ -154,7 +154,7 @@ test('o hangar valida JSON e permite baixar a configuração aplicada', async ({
   await projectileSpeed.press('ArrowRight');
   await page.reload();
   await expect(projectileSpeed).toHaveValue(String(ATTRIBUTES_BASE + 1));
-  await expect(bay.locator('.budget output')).toHaveText('0');
+  await expect(bay.locator('.budget output')).toHaveText('2');
   await bay.getByText('JSON configuration', { exact: true }).click();
 
   const downloadEvent = page.waitForEvent('download');

@@ -3,8 +3,6 @@ export const attributes = [
   { id: 'defense', icon: 'shield' },
   { id: 'attack', icon: 'swords' },
   { id: 'speed', icon: 'bolt' },
-  { id: 'evasion', icon: 'wind' },
-  { id: 'aim', icon: 'target' },
   { id: 'projectileSpeed', icon: 'bolt' },
 ];
 

@@ -231,7 +231,8 @@ export function createBattle(loadouts, {
   const arena = generateArena(random);
   const navigation = prepareNavigation(arena.walls);
   const robots = loadouts.map((loadout, id) => {
-    const baseStats = { projectileSpeed: ATTRIBUTES_BASE, ...loadout.stats };
+    const stats = { projectileSpeed: ATTRIBUTES_BASE, ...loadout.stats };
+    const baseStats = Object.fromEntries(attributes.map(({ id }) => [id, stats[id]]));
     return {
       id, x: id === 0 ? 71 : WIDTH - 71, y: HEIGHT / 2, angle: id === 0 ? 0 : Math.PI,
       stats: { ...baseStats }, hp: baseStats.hp, strategy: loadout.strategy,
@@ -728,28 +729,6 @@ export function createBattle(loadouts, {
 
   function hit(robot, enemy, key, angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x)) {
     const weapon = guns[key];
-    const aim = robot.stats.aim / (robot.stats.aim + 70);
-    const dodgeChance = enemy.stats.evasion > 0
-      ? clamp(1 - robot.stats.aim / enemy.stats.evasion, 0, 1)
-      : 0;
-    const roll = random();
-    const accuracy = 0.78 + 0.21 * aim;
-    if (roll >= accuracy) {
-      log(robot, 'event.miss', `guns.${key}.name`);
-      return;
-    }
-    if (roll >= accuracy * (1 - dodgeChance)) {
-      const side = angle + Math.PI / 2;
-      const dx = Math.cos(side) * 11;
-      const dy = Math.sin(side) * 11;
-      if (!move(enemy, { x: enemy.x + dx, y: enemy.y + dy }, 11, robot)) {
-        move(enemy, { x: enemy.x - dx, y: enemy.y - dy }, 11, robot);
-      }
-      log(robot, 'event.evaded', `guns.${key}.name`);
-      log(enemy, 'event.dodge', `guns.${key}.name`);
-      effect('dodge', enemy, enemy, 0.35);
-      return;
-    }
     const critical = key === 'pistol' && random() < 0.18;
     const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${key}.name`);
     if (returned || state.result) return;

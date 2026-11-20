@@ -4,10 +4,10 @@ import { ATTRIBUTES_BASE } from '../../config.js';
 import { createBattle, EDGE, generateArena, HEIGHT, RADIUS, STEP, WIDTH } from '../../src/battle.js';
 import { guns } from '../../src/catalog.js';
 
-function loadout({ hp = 100, speed = 10, attack = 0, defense = 0, evasion = 0, aim = 0,
+function loadout({ hp = 100, speed = 10, attack = 0, defense = 0,
   weapons = [], tools = [], strategy = 'advance' } = {}) {
   return {
-    stats: { hp, defense, attack, speed, evasion, aim },
+    stats: { hp, defense, attack, speed },
     guns: weapons,
     utils: tools,
     strategy,
@@ -53,24 +53,6 @@ test('o dano escala com a razão entre ataque e defesa', () => {
     const damage = guns.hammer.damage * multiplier;
     assert.equal(events.find(event => event.action === 'event.hit')?.damage, damage);
     assert.equal(state.robots[1].hp, 1000 - damage);
-  }
-});
-
-test('a chance de esquiva depende da razão entre mira e evasão', () => {
-  for (const [aim, evasion, rollWithinAccuracy, action] of [
-    [1, 100, 0.009, 'event.hit'], [1, 100, 0.011, 'event.evaded'],
-    [10, 1000, 0.009, 'event.hit'], [10, 1000, 0.011, 'event.evaded'],
-    [10, 100, 0.09, 'event.hit'], [10, 100, 0.11, 'event.evaded'],
-    [100, 100, 0.99, 'event.hit'], [200, 100, 0.99, 'event.hit'],
-    [1, 0, 0.99, 'event.hit'], [1, 100, 1.01, 'event.miss'],
-  ]) {
-    const accuracy = 0.78 + 0.21 * (aim / (aim + 70));
-    const { state, step, events } = duel([
-      loadout({ aim, weapons: ['hammer'] }), loadout({ evasion, speed: 0 }),
-    ], { random: () => rollWithinAccuracy * accuracy });
-    state.robots[1].x = state.robots[0].x + 2 * RADIUS;
-    step();
-    assert.ok(events.some(event => event.action === action));
   }
 });
 
@@ -158,7 +140,7 @@ test('o drop de vida recupera 15% do HP máximo e respeita esse limite', () => {
 for (const strategy of ['distance', 'flank']) {
   test(`${strategy} recua até perto do alcance da pistola e continua atirando`, () => {
     const { state, step, events } = duel([
-      loadout({ weapons: ['pistol', 'saw'], strategy }), loadout(),
+      loadout({ weapons: ['pistol', 'saw'], strategy, speed: 100 }), loadout(),
     ], { random: () => 0.2 });
     const [robot, enemy] = state.robots;
     Object.assign(robot, { x: 250, y: 280 });
@@ -220,7 +202,7 @@ test('o canhão de pulso causa dano e empurra o alvo para longe', () => {
 test('a pistola viaja mais rápido que o disco e ambos causam dano só no impacto', () => {
   const { state, step } = duel([
     loadout({ weapons: ['pistol', 'disc'], speed: 0 }), loadout({ speed: 0 }),
-  ], { random: () => 0.2 });
+  ], { random: () => 0.95 });
   const [attacker, target] = state.robots;
   Object.assign(attacker, { x: 100, y: 50 });
   Object.assign(target, { x: 280, y: 50 });
@@ -395,14 +377,14 @@ test('a serra e o martelo causam dano imediato apenas no contato', () => {
   for (const [weapon, strategy] of [['saw', 'distance'], ['hammer', 'advance']]) {
     const { state, step } = duel([
       loadout({ weapons: [weapon], strategy, speed: 0 }), loadout({ speed: 0 }),
-    ]);
+    ], { random: () => 0.95 });
     const [attacker, target] = state.robots;
     Object.assign(attacker, { x: 450, y: 50 });
     Object.assign(target, { x: 450 + 2 * RADIUS + 5, y: 50, goal: target, thinkAt: Infinity });
     step();
     assert.equal(target.hp, 100);
     assert.equal(attacker.guns[0].ready, 0);
-    attacker.stats.speed = 60;
+    attacker.stats.speed = 240;
     step();
     assert.equal(target.x - attacker.x, 2 * RADIUS);
     assert.equal(target.hp, 100 - guns[weapon].damage);
