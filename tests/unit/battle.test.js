@@ -56,12 +56,13 @@ test('o dano escala com a razão entre ataque e defesa', () => {
   }
 });
 
-test('a arena sorteia paredes e lama dentro dos limites do campo', () => {
+test('a arena sorteia paredes, lama e placas de espinhos dentro dos limites do campo', () => {
   for (const [roll, count] of [[0.1, 3], [0.9, 4]]) {
-    const { walls, mud } = generateArena(() => roll);
+    const { walls, mud, spikePatches, spikeRim } = generateArena(() => roll);
     assert.equal(walls.length, count);
     assert.equal(mud.length, 4);
-    for (const { x, y, w, h } of walls) {
+    assert.ok(spikePatches.length > 0);
+    for (const { x, y, w, h } of [...walls, ...spikePatches, ...spikeRim]) {
       assert.ok(w > 0 && h > 0);
       assert.ok(x >= EDGE && x + w <= WIDTH - EDGE);
       assert.ok(y >= EDGE && y + h <= HEIGHT - EDGE);
@@ -72,6 +73,71 @@ test('a arena sorteia paredes e lama dentro dos limites do campo', () => {
       assert.ok(y - ry >= EDGE && y + ry <= HEIGHT - EDGE);
     }
   }
+});
+
+test('o contato com a placa e com os quatro lados da borda causa dano até o robô sair', () => {
+  const { state, step, events } = duel([loadout({ speed: 0 }), loadout({ speed: 0 })]);
+  const robot = state.robots[0];
+  const { x, y, h } = state.spikePatches[0];
+  const edge = EDGE + RADIUS;
+  for (const point of [
+    { x: x - RADIUS, y: y + h / 2 },
+    { x: edge, y: HEIGHT / 2 }, { x: WIDTH - edge, y: HEIGHT / 2 },
+    { x: WIDTH / 2, y: edge }, { x: WIDTH / 2, y: HEIGHT - edge },
+  ]) {
+    const hp = robot.hp;
+    Object.assign(robot, point);
+    step(0.5);
+    assert.equal(robot.hp, hp - 2);
+    Object.assign(robot, { x: 90, y: HEIGHT / 2 });
+    step(0.5);
+    assert.equal(robot.hp, hp - 2);
+  }
+  assert.equal(events.filter(event => event.action === 'event.spikes' && event.damage === 2).length, 5);
+});
+
+test('o robô sai da borda com velocidade reduzida e retoma a velocidade ao sair', () => {
+  const { state, step } = duel([loadout({ speed: 100 }), loadout({ speed: 0 })]);
+  const robot = state.robots[0];
+  const edge = EDGE + RADIUS;
+  Object.assign(robot, { x: edge, goal: { x: 100, y: robot.y }, thinkAt: Infinity });
+  step(0.1);
+  assert.equal(robot.x, edge + 7.5);
+  step(0.1);
+  const escaped = robot.x;
+  step(0.1);
+  assert.equal(robot.x, escaped + 15);
+  assert.ok(Math.abs(robot.hp - 99.2) < 1e-8);
+});
+
+test('os espinhos podem nocautear um robô que permanece na borda', () => {
+  const { state, step, events } = duel([loadout({ hp: 0.5, speed: 0 }), loadout()]);
+  state.robots[0].x = EDGE + RADIUS;
+  step(0.25);
+  assert.equal(state.robots[0].hp, 0);
+  assert.deepEqual(state.result, { winner: 1, reason: 'knockout' });
+  assert.equal(events.find(event => event.action === 'event.spikes')?.damage, 0.5);
+});
+
+test('a navegação contorna a placa e evita um destino junto à borda', () => {
+  const { state, step } = duel([loadout({ speed: 5000 }), loadout({ speed: 0 })]);
+  const [robot, enemy] = state.robots;
+  const { x, y, w, h } = state.spikePatches[0];
+  const goal = { x: x + w + 65, y: y + h / 2 };
+  Object.assign(robot, { x: x - 50, y: goal.y, goal, thinkAt: Infinity });
+  Object.assign(enemy, { goal: enemy, thinkAt: Infinity });
+  step();
+  assert.ok(robot.y !== goal.y);
+  for (let frame = 0; frame < 10; frame++) step();
+  assert.equal(robot.x, goal.x);
+  assert.equal(robot.y, goal.y);
+
+  robot.goal = { x: goal.x, y: HEIGHT - EDGE - RADIUS };
+  robot.nextPath = 0;
+  for (let frame = 0; frame < 10; frame++) step();
+  assert.ok(robot.y > goal.y);
+  assert.ok(robot.y < robot.goal.y);
+  assert.equal(robot.hp, 100);
 });
 
 test('ao esgotar o tempo, o resultado usa o HP absoluto e trata empates', () => {
@@ -291,7 +357,7 @@ test('um projétil fora da rota do robô não interrompe seu movimento', () => {
 
 test('um robô rápido evita reentrar ou cruzar a trajetória até o projétil desaparecer', () => {
   const shotY = 77;
-  for (const goalY of [shotY, 38]) {
+  for (const goalY of [shotY, 49]) {
     const { state, step } = duel([
       loadout({ weapons: ['disc'], speed: 0 }), loadout({ speed: 3500 }),
     ]);

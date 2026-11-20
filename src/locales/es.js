@@ -13,7 +13,7 @@ export default {
   "matchLength": "{time} de combate",
   "duel": "Duelo autónomo",
   "arenaTitle": "Arena de batalla",
-  "arenaLabel": "Vista aérea de la arena de batalla, con muros, barro y dos robots",
+  "arenaLabel": "Vista aérea de la arena de batalla, con muros, barro, pinchos y dos robots",
   "back": "Volver al hangar",
   "battleLog": "Registro de la batalla",
   "time": "Tiempo",
@@ -148,5 +148,6 @@ export default {
   "event.critical": "{item} · golpe crítico",
   "event.hookEnemy": "Atrajo al rival con el garfio",
   "event.start": "Combate iniciado",
-  "event.burn": "Quemadura"
+  "event.burn": "Quemadura",
+  "event.spikes": "Daño de los pinchos"
 };

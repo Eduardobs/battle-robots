@@ -12,6 +12,10 @@ const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
 const CONTACT_RANGE = RADIUS * 2;
 const DODGE_LOOKAHEAD = 0.45;
 const DODGE_CLEARANCE = RADIUS + 4;
+const SPIKE_BORDER = 10;
+const SPIKE_SPEED = 0.5;
+const SPIKE_DAMAGE_PER_SECOND = 4;
+const SPIKE_INSET = EDGE + SPIKE_BORDER + RADIUS + 1;
 const weaponRange = key => guns[key].range ?? CONTACT_RANGE;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -22,6 +26,19 @@ const steeringOffsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6];
 const expand = (rect, pad) => ({
   x: rect.x - pad, y: rect.y - pad, w: rect.w + pad * 2, h: rect.h + pad * 2,
 });
+const inside = (point, rect) => point.x >= rect.x && point.x <= rect.x + rect.w &&
+  point.y >= rect.y && point.y <= rect.y + rect.h;
+const withinSpikeBorder = ({ x, y }) =>
+  Math.min(x, WIDTH - x, y, HEIGHT - y) <= EDGE + SPIKE_BORDER + RADIUS;
+const clampToSafeInterior = ({ x, y }) => ({
+  x: clamp(x, SPIKE_INSET, WIDTH - SPIKE_INSET),
+  y: clamp(y, SPIKE_INSET, HEIGHT - SPIKE_INSET),
+});
+
+function touchesSpikes({ x, y }, spikePatches) {
+  return withinSpikeBorder({ x, y }) || spikePatches.some(rect =>
+    Math.hypot(x - clamp(x, rect.x, rect.x + rect.w), y - clamp(y, rect.y, rect.y + rect.h)) <= RADIUS);
+}
 
 function firingRange(robot) {
   const ranges = robot.guns.filter(item => !keepsRange(robot) || item.key !== 'hook' ||
@@ -167,7 +184,8 @@ export function generateArena(random) {
     const other = Math.floor(random() * (index + 1));
     [cells[index], cells[other]] = [cells[other], cells[index]];
   }
-  const walls = cells.slice(0, random() < 0.5 ? 3 : 4).map(([cx, cy]) => {
+  const wallCount = random() < 0.5 ? 3 : 4;
+  const walls = cells.slice(0, wallCount).map(([cx, cy]) => {
     const horizontal = random() < 0.5;
     const w = horizontal ? between(83, 125) : between(32, 46);
     const h = horizontal ? between(32, 46) : between(83, 125);
@@ -177,24 +195,33 @@ export function generateArena(random) {
     x: x + between(-30, 30), y: y + between(-22, 22),
     rx: between(38, 62), ry: between(27, 39),
   }));
-  return { walls, mud };
+  const spikePatches = cells.slice(wallCount).map(([x, y]) => ({ x: x - 29, y: y - 23, w: 58, h: 46 }));
+  const spikeRim = [
+    { x: EDGE, y: EDGE, w: WIDTH - 2 * EDGE, h: SPIKE_BORDER },
+    { x: EDGE, y: HEIGHT - EDGE - SPIKE_BORDER, w: WIDTH - 2 * EDGE, h: SPIKE_BORDER },
+    { x: EDGE, y: EDGE + SPIKE_BORDER, w: SPIKE_BORDER, h: HEIGHT - 2 * (EDGE + SPIKE_BORDER) },
+    { x: WIDTH - EDGE - SPIKE_BORDER, y: EDGE + SPIKE_BORDER, w: SPIKE_BORDER, h: HEIGHT - 2 * (EDGE + SPIKE_BORDER) },
+  ];
+  return { walls, mud, spikePatches, spikeRim };
 }
 
-function prepareNavigation(walls) {
+function prepareNavigation(walls, spikePatches) {
   const solids = walls.map(wall => expand(wall, RADIUS));
-  const nodes = walls.flatMap(wall => {
-    const { x, y, w, h } = expand(wall, RADIUS + 5);
+  const hazards = spikePatches.map(rect => expand(rect, RADIUS));
+  const barriers = [...solids, ...hazards];
+  const nodes = barriers.flatMap(barrier => {
+    const { x, y, w, h } = expand(barrier, 5);
     return [{ x, y }, { x: x + w, y }, { x, y: y + h }, { x: x + w, y: y + h }];
-  });
+  }).filter(point => !withinSpikeBorder(point));
   const edges = nodes.map(start => nodes.map(end =>
-    blocked(start, end, solids) ? Infinity : distance(start, end)));
-  return { solids, nodes, edges };
+    blocked(start, end, barriers) ? Infinity : distance(start, end)));
+  return { solids, hazards, barriers, nodes, edges };
 }
 
-function nextWaypoint(start, end, { solids, nodes, edges }, measure = false) {
-  if (!blocked(start, end, solids)) return measure ? distance(start, end) : end;
-  const costs = nodes.map(node => blocked(start, node, solids) ? Infinity : distance(start, node));
-  const exits = nodes.map(node => blocked(node, end, solids) ? Infinity : distance(node, end));
+function nextWaypoint(start, end, { barriers, nodes, edges }, measure = false) {
+  if (!blocked(start, end, barriers)) return measure ? distance(start, end) : end;
+  const costs = nodes.map(node => blocked(start, node, barriers) ? Infinity : distance(start, node));
+  const exits = nodes.map(node => blocked(node, end, barriers) ? Infinity : distance(node, end));
   const first = [...nodes];
   const visited = new Set();
   let best = Infinity;
@@ -229,7 +256,7 @@ export function createBattle(loadouts, {
   random = Math.random, duration = BATTLE_TIME_IN_SECONDS, onEvent = () => {},
 } = {}) {
   const arena = generateArena(random);
-  const navigation = prepareNavigation(arena.walls);
+  const navigation = prepareNavigation(arena.walls, arena.spikePatches);
   const robots = loadouts.map((loadout, id) => {
     const stats = { projectileSpeed: ATTRIBUTES_BASE, ...loadout.stats };
     const baseStats = Object.fromEntries(attributes.map(({ id }) => [id, stats[id]]));
@@ -239,7 +266,7 @@ export function createBattle(loadouts, {
       guns: loadout.guns.map(key => ({ key, ready: 0 })),
       utils: loadout.utils.map(key => ({ key, ready: 0, until: 0 })),
       baseStats, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
-      waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false,
+      waypoint: null, nextPath: 0, burn: null, pull: null, muddy: false, moving: false, spikeDamage: 0,
     };
   });
   const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
@@ -250,7 +277,7 @@ export function createBattle(loadouts, {
   for (let x = 90; x < WIDTH - 60; x += 55) {
     for (let y = 85; y < HEIGHT - 60; y += 50) {
       const point = { x, y };
-      if (!blocked(point, point, navigation.solids)) positions.push(point);
+      if (!withinSpikeBorder(point) && !blocked(point, point, navigation.barriers)) positions.push(point);
     }
   }
 
@@ -330,8 +357,36 @@ export function createBattle(loadouts, {
   }
 
   function movementSpeed(robot) {
-    return SPEED_PER_POINT * robot.stats.speed * (active(robot, 'nitro') ? 1.2 : 1) *
+    return SPEED_PER_POINT * robot.stats.speed * spikeSpeed(robot) * (active(robot, 'nitro') ? 1.2 : 1) *
       (inMud(robot, arena.mud) && !active(robot, 'treads') ? 0.55 : 1);
+  }
+
+  function spikeSpeed(robot) {
+    return touchesSpikes(robot, arena.spikePatches) ? SPIKE_SPEED : 1;
+  }
+
+  function entersSpikes(start, end) {
+    return (!withinSpikeBorder(start) && withinSpikeBorder(end)) ||
+      navigation.hazards.some(rect => !inside(start, rect) && impact(start, end, rect) !== null);
+  }
+
+  function safeTarget(point, origin = point) {
+    const safe = clampToSafeInterior(point);
+    const patch = navigation.hazards.find(rect => inside(safe, rect));
+    if (!patch) return withinSpikeBorder(point) ? safe : point;
+    const { x, y, w, h } = expand(patch, 1);
+    const exits = [{ x, y: safe.y }, { x: x + w, y: safe.y }, { x: safe.x, y }, { x: safe.x, y: y + h }];
+    let best = point;
+    let gap = Infinity;
+    for (const exit of exits) {
+      const span = distance(origin, exit);
+      if (span < gap && !withinSpikeBorder(exit) && !blocked(point, exit, navigation.solids) &&
+          !entersSpikes(point, exit)) {
+        best = exit;
+        gap = span;
+      }
+    }
+    return best;
   }
 
   function interceptPoint(robot, enemy, range) {
@@ -379,8 +434,7 @@ export function createBattle(loadouts, {
         const angle = index * Math.PI / 6;
         const point = { x: echo.point.x + Math.cos(angle) * (ECHO_RADIUS + 8),
           y: echo.point.y + Math.sin(angle) * (ECHO_RADIUS + 8) };
-        if (point.x < EDGE + RADIUS || point.x > WIDTH - EDGE - RADIUS ||
-            point.y < EDGE + RADIUS || point.y > HEIGHT - EDGE - RADIUS ||
+        if (withinSpikeBorder(point) || entersSpikes(robot, point) ||
             blocked(robot, point, navigation.solids)) continue;
         const gap = distance(robot, point);
         if (gap < shortest) {
@@ -394,7 +448,7 @@ export function createBattle(loadouts, {
     } else if (drops.length && !cooling && !(nearCorner && span < 115)) {
       intent = 'drop';
       const cost = drop => distance(robot, drop) +
-        (blocked(robot, drop, navigation.solids) ? 75 : 0) +
+        (blocked(robot, drop, navigation.barriers) ? 75 : 0) +
         Math.max(0, distance(robot, drop) - distance(enemy, drop)) * 0.45;
       goal = drops[0];
       let bestCost = cost(goal);
@@ -456,10 +510,18 @@ export function createBattle(loadouts, {
 
   function finish(reason) {
     if (state.result) return;
+    robots.forEach(reportSpikeDamage);
     const [a, b] = robots;
     const winner = Math.abs(a.hp - b.hp) < 1e-8 ? null : a.hp > b.hp ? a.id : b.id;
     state.result = { winner, reason };
     log(null, `event.${reason}`);
+  }
+
+  function reportSpikeDamage(robot) {
+    if (!robot.spikeDamage) return;
+    log(robot, 'event.spikes', null, robot.spikeDamage);
+    effect('hit', robot, robot, 0.40, { amount: robot.spikeDamage });
+    robot.spikeDamage = 0;
   }
 
   function damage(attacker, defender, base, action, item) {
@@ -485,7 +547,7 @@ export function createBattle(loadouts, {
     return false;
   }
 
-  function move(robot, target, amount, opponent, paths = []) {
+  function move(robot, target, amount, opponent, paths) {
     const span = distance(robot, target);
     if (span < 0.1) return false;
     const to = pointAlong(robot, target, Math.min(amount / span, 1));
@@ -506,7 +568,8 @@ export function createBattle(loadouts, {
         next[axis] = clamp(contact, Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis]));
       }
       if (next[axis] !== robot[axis] && !blocked(robot, next, navigation.solids) &&
-          !paths.some(path => entersProjectilePath(robot, next, axis, path))) robot[axis] = next[axis];
+          !(paths && (entersSpikes(robot, next) ||
+            paths.some(path => entersProjectilePath(robot, next, axis, path))))) robot[axis] = next[axis];
     }
     return distance(prior, robot) > 0.01;
   }
@@ -531,11 +594,11 @@ export function createBattle(loadouts, {
     let bestScore = -rangeCost(span);
     for (const offset of steeringOffsets) {
       const angle = heading + offset * Math.PI / 6;
-      const point = {
-        x: clamp(robot.x + Math.cos(angle) * lookAhead, EDGE + RADIUS, WIDTH - EDGE - RADIUS),
-        y: clamp(robot.y + Math.sin(angle) * lookAhead, EDGE + RADIUS, HEIGHT - EDGE - RADIUS),
-      };
-      if (blocked(robot, point, navigation.solids) || blocked(point, enemy, state.walls)) continue;
+      const point = clampToSafeInterior({
+        x: robot.x + Math.cos(angle) * lookAhead, y: robot.y + Math.sin(angle) * lookAhead,
+      });
+      if (entersSpikes(robot, point) || blocked(robot, point, navigation.solids) ||
+          blocked(point, enemy, state.walls)) continue;
       const lateral = (point.y - robot.y) * Math.cos(aim) - (point.x - robot.x) * Math.sin(aim);
       const score = -rangeCost(distance(point, enemy)) +
         (Math.abs(lateral) + lateral * 0.05) * flankWeight;
@@ -588,11 +651,10 @@ export function createBattle(loadouts, {
     let target = null;
     for (const offset of steeringOffsets) {
       const angle = urgent.angle + Math.PI / 2 + offset * Math.PI / 6;
-      const point = {
-        x: clamp(robot.x + Math.cos(angle) * reach, EDGE + RADIUS, WIDTH - EDGE - RADIUS),
-        y: clamp(robot.y + Math.sin(angle) * reach, EDGE + RADIUS, HEIGHT - EDGE - RADIUS),
-      };
-      if (blocked(robot, point, navigation.solids) ||
+      const point = clampToSafeInterior({
+        x: robot.x + Math.cos(angle) * reach, y: robot.y + Math.sin(angle) * reach,
+      });
+      if (entersSpikes(robot, point) || blocked(robot, point, navigation.solids) ||
           distance(enemy, pointAlong(robot, point, closestFraction(robot, point, enemy))) <
             Math.min(CONTACT_RANGE, distance(robot, enemy)) - 1e-8) continue;
       const span = distance(robot, point);
@@ -615,7 +677,7 @@ export function createBattle(loadouts, {
     if (robot.pull) {
       const { target, until, stop } = robot.pull;
       if (state.time < until && distance(robot, target) > stop &&
-          move(robot, target, 325 * dt, enemy)) {
+          move(robot, target, 325 * dt * spikeSpeed(robot), enemy)) {
         turnToward(robot, target, dt);
         return;
       }
@@ -631,13 +693,15 @@ export function createBattle(loadouts, {
     const dodge = dodgeTarget(robot, enemy, speed, dt, paths);
     if (!dodge && state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
     const prior = { x: robot.x, y: robot.y };
+    const escape = safeTarget(robot);
     let target = robot;
     let moving = false;
-    if (dodge) {
-      target = dodge;
+    if (dodge || escape !== robot) {
+      target = dodge || escape;
       moving = move(robot, target, speed * dt, enemy, paths);
       robot.nextPath = 0;
-    } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE) {
+    } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE &&
+        (span <= firingDistance || !entersSpikes(robot, enemy))) {
       let remaining = speed * dt;
       while (remaining > 0) {
         target = rangedTarget(robot, enemy, distance(robot, enemy), firingDistance);
@@ -648,7 +712,7 @@ export function createBattle(loadouts, {
       }
     } else if (robot.goal !== enemy || span > preferred || !clear) {
       if (state.time >= robot.nextPath || !robot.waypoint || distance(robot, robot.waypoint) < 7) {
-        robot.waypoint = nextWaypoint(robot, robot.goal, navigation);
+        robot.waypoint = nextWaypoint(robot, safeTarget(robot.goal, robot), navigation);
         robot.nextPath = state.time + 0.20;
       }
       target = robot.waypoint;
@@ -712,6 +776,7 @@ export function createBattle(loadouts, {
         const travel = Math.min(325 * 0.6, distance(robot, clearance) - 2);
         if (travel <= RADIUS) continue;
         const landing = pointAlong(robot, contact, travel / reach);
+        if (entersSpikes(robot, landing)) continue;
         if ((landing.x - robot.x) * (robot.x - enemy.x) +
             (landing.y - robot.y) * (robot.y - enemy.y) < 0) continue;
         const gain = distance(landing, enemy) - span;
@@ -869,6 +934,20 @@ export function createBattle(loadouts, {
       nextDrop += 5;
     }
     for (const robot of order) expire(robot);
+    for (const robot of order) {
+      if (touchesSpikes(robot, state.spikePatches)) {
+        const amount = Math.min(robot.hp, SPIKE_DAMAGE_PER_SECOND * delta);
+        robot.hp -= amount;
+        robot.spikeDamage += amount;
+        if (robot.spikeDamage >= SPIKE_DAMAGE_PER_SECOND / 2 - 1e-8) reportSpikeDamage(robot);
+      } else {
+        reportSpikeDamage(robot);
+      }
+    }
+    if (robots.some(robot => robot.hp <= 0)) {
+      finish('knockout');
+      return;
+    }
     for (const robot of order) {
       useTools(robot, robots[1 - robot.id]);
       walk(robot, robots[1 - robot.id], delta);

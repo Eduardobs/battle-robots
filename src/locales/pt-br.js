@@ -13,7 +13,7 @@ export default {
   "matchLength": "{time} de combate",
   "duel": "Duelo autônomo",
   "arenaTitle": "Arena de batalha",
-  "arenaLabel": "Arena de batalha em visão aérea, com paredes, lama e dois robôs",
+  "arenaLabel": "Arena de batalha em visão aérea, com paredes, lama, espinhos e dois robôs",
   "back": "Voltar ao hangar",
   "battleLog": "Registro da batalha",
   "time": "Tempo",
@@ -148,5 +148,6 @@ export default {
   "event.critical": "{item} · crítico",
   "event.hookEnemy": "Puxou o adversário com o gancho",
   "event.start": "Combate iniciado",
-  "event.burn": "Queimadura"
+  "event.burn": "Queimadura",
+  "event.spikes": "Dano dos espinhos"
 };

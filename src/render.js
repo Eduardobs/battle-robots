@@ -37,6 +37,33 @@ export function createRenderer(canvas) {
     }
   };
 
+  function drawSpikes({ x, y, w, h }) {
+    rect(ground, '#3c2524', x, y, w, h);
+    ground.strokeStyle = '#a05a49';
+    ground.lineWidth = 1;
+    ground.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    const columns = Math.floor(w / 10);
+    const rows = Math.floor(h / 10);
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        const cx = x + (col + 0.5) * w / columns;
+        const cy = y + (row + 0.5) * h / rows;
+        ground.fillStyle = '#edb29b';
+        ground.beginPath();
+        ground.moveTo(cx, cy - 4);
+        ground.lineTo(cx - 3.5, cy + 3);
+        ground.lineTo(cx + 3.5, cy + 3);
+        ground.fill();
+        ground.fillStyle = '#ac6b59';
+        ground.beginPath();
+        ground.moveTo(cx, cy - 4);
+        ground.lineTo(cx, cy + 3);
+        ground.lineTo(cx + 3.5, cy + 3);
+        ground.fill();
+      }
+    }
+  }
+
   function drawGround(state) {
     rect(ground, '#171a1c', 0, 0, WIDTH, HEIGHT);
     for (let x = 24; x < WIDTH; x += 24) {
@@ -71,6 +98,8 @@ export function createRenderer(canvas) {
         line(ground, i % 2 ? '#655038' : '#53412a', 2, { x, y }, { x: x + 8, y });
       }
     }
+    state.spikePatches.forEach(drawSpikes);
+    state.spikeRim.forEach(drawSpikes);
     for (const { x, y, w, h } of state.walls) {
       rect(ground, '#0c0e10', x + 4, y + 5, w, h);
       rect(ground, '#525b5e', x, y, w, h);

@@ -13,7 +13,7 @@ export default {
   "matchLength": "{time} of combat",
   "duel": "Autonomous duel",
   "arenaTitle": "Battle arena",
-  "arenaLabel": "Overhead view of the battle arena, with walls, mud and two robots",
+  "arenaLabel": "Overhead view of the battle arena, with walls, mud, spikes and two robots",
   "back": "Back to the hangar",
   "battleLog": "Battle log",
   "time": "Time",
@@ -148,5 +148,6 @@ export default {
   "event.critical": "{item} · critical hit",
   "event.hookEnemy": "Pulled the opponent with the grappling hook",
   "event.start": "Battle started",
-  "event.burn": "Burn"
+  "event.burn": "Burn",
+  "event.spikes": "Spike damage"
 };

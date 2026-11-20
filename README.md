@@ -4,6 +4,8 @@ Duelo 2D de robôs autônomos para dois jogadores no mesmo navegador. No hangar,
 
 Na arena, os robôs contornam paredes, desaceleram na lama e usam o equipamento instalado. A partida termina no primeiro nocaute ou quando o cronômetro chega a zero. Vence o robô com mais HP absoluto. Valores iguais resultam em empate.
 
+Os espinhos aparecem em placas no campo e em toda a borda interna. Enquanto o chassi toca os espinhos, o robô perde 4 HP por segundo e se move à metade da velocidade. Os robôs tentam contornar essas áreas e sair delas quando são atingidos.
+
 Durante o duelo, os robôs disputam drops que aparecem a cada 5 segundos e permanecem na arena até a coleta. Eles também procuram cobertura, recuam sob ameaça e tentam escapar dos cantos.
 
 | Drop | Efeito ao coletar |
