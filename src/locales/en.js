@@ -32,6 +32,7 @@ export default {
   "decrease": "Decrease {attribute}",
   "increase": "Increase {attribute}",
   "attributeInput": "{attribute} for {name}",
+  "attributeValueInput": "{attribute} value for {name}",
   "equipmentLegend": "Equipment and behavior for {name}",
   "equipmentSlot": "{name} {number}",
   "weapon": "Weapon",

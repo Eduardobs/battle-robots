@@ -131,7 +131,7 @@ function buildBays() {
             return `
             <div class="attribute" data-attribute="${attr.id}">
               <label for="${attr.id}-${id}" title="${t(`attr.${attr.id}.description`)}">${icon(attr.icon)} <span>${attribute}</span></label>
-              <span class="attribute-value" aria-hidden="true"></span>
+              <input class="attribute-value" type="number" min="${ATTRIBUTES_BASE}" step="1" aria-label="${t('attributeValueInput', { attribute, name })}">
               <input id="${attr.id}-${id}" type="range" min="${ATTRIBUTES_BASE}" step="1" aria-label="${t('attributeInput', { attribute, name })}">
               <div class="attribute-limits" aria-hidden="true"><span>${numberFormat.format(ATTRIBUTES_BASE)}</span><span class="attribute-max"></span></div>
             </div>`;
@@ -181,14 +181,14 @@ function refresh(id) {
   bay.querySelector('[data-attributes="random"]').disabled = rest === 0;
   for (const row of bay.querySelectorAll('.attribute')) {
     const value = loadout.stats[row.dataset.attribute];
-    const input = row.querySelector('input');
+    const slider = row.querySelector('input[type="range"]');
+    const field = row.querySelector('.attribute-value');
     const max = value + rest;
     const range = max - ATTRIBUTES_BASE;
-    input.max = max;
-    input.value = value;
-    input.disabled = range === 0;
-    input.style.setProperty('--fill', `${range ? (value - ATTRIBUTES_BASE) / range * 100 : 0}%`);
-    row.querySelector('.attribute-value').textContent = numberFormat.format(value);
+    slider.max = field.max = max;
+    slider.value = field.value = value;
+    slider.disabled = field.disabled = range === 0;
+    slider.style.setProperty('--fill', `${range ? (value - ATTRIBUTES_BASE) / range * 100 : 0}%`);
     row.querySelector('.attribute-max').textContent = numberFormat.format(max);
   }
   for (const select of bay.querySelectorAll('select')) {
@@ -295,8 +295,20 @@ function bindBay(bay, id) {
   const loadout = loadouts[id];
   bay.querySelectorAll('.attribute').forEach(row => {
     const key = row.dataset.attribute;
-    const input = row.querySelector('input');
-    input.addEventListener('input', () => setAttribute(id, key, input.valueAsNumber));
+    const slider = row.querySelector('input[type="range"]');
+    const field = row.querySelector('.attribute-value');
+    slider.addEventListener('input', () => setAttribute(id, key, slider.valueAsNumber));
+    field.addEventListener('blur', () => {
+      const value = field.valueAsNumber;
+      if (Number.isFinite(value) && value !== loadout.stats[key]) {
+        setAttribute(id, key, value);
+      } else {
+        field.value = loadout.stats[key];
+      }
+    });
+    field.addEventListener('keydown', event => {
+      if (event.key === 'Enter') field.blur();
+    });
   });
   bay.querySelector('[data-attributes="clear"]').addEventListener('click', () => {
     for (const { id: key } of attributes) loadout.stats[key] = ATTRIBUTES_BASE;

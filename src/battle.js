@@ -7,6 +7,7 @@ export const EDGE = 18;
 export const RADIUS = 19;
 export const STEP = 1 / 60;
 
+const SPEED_PER_POINT = 7;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -301,7 +302,7 @@ export function createBattle(loadouts, {
   }
 
   function damage(attacker, defender, base, action, item) {
-    const power = (1 + attacker.stats.attack / 55) / (1 + defender.stats.defense / 70);
+    const power = Math.max(1, attacker.stats.attack) / Math.max(1, defender.stats.defense);
     const applied = Math.min(defender.hp, base * power * (active(defender, 'shield') ? 0.55 : 1));
     defender.hp = Math.max(0, defender.hp - applied);
     log(attacker, action, item, applied);
@@ -318,8 +319,17 @@ export function createBattle(loadouts, {
     const prior = { x: robot.x, y: robot.y };
     for (const axis of ['x', 'y']) {
       const next = { x: robot.x, y: robot.y, [axis]: to[axis] };
-      const gap = distance(next, opponent);
-      if (gap < RADIUS * 2 && gap < distance(robot, opponent)) continue;
+      const closest = {
+        ...next,
+        [axis]: clamp(opponent[axis], Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis])),
+      };
+      if (distance(closest, opponent) < RADIUS * 2 && distance(closest, opponent) < distance(robot, opponent)) {
+        const crossGap = axis === 'x' ? robot.y - opponent.y : robot.x - opponent.x;
+        const clearance = Math.sqrt((RADIUS * 2) ** 2 - crossGap ** 2);
+        const side = Math.sign(robot[axis] - opponent[axis]);
+        const contact = opponent[axis] + side * clearance;
+        next[axis] = clamp(contact, Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis]));
+      }
       if (!blocked(robot, next, navigation.solids)) robot[axis] = next[axis];
     }
     return distance(prior, robot) > 0.01;
@@ -380,20 +390,28 @@ export function createBattle(loadouts, {
     const clear = !blocked(robot, enemy, state.walls);
     const firingDistance = firingRange(robot);
     const preferred = firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83);
+    const speed = SPEED_PER_POINT * robot.stats.speed *
+      (active(robot, 'nitro') ? 1.2 : 1) * (muddy ? 0.55 : 1);
     if (state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
     let target = robot;
+    let moving = false;
     if (keepsRange(robot) && robot.goal === enemy && clear) {
-      target = rangedTarget(robot, enemy, span, firingDistance);
+      let remaining = speed * dt;
+      while (remaining > 0) {
+        target = rangedTarget(robot, enemy, distance(robot, enemy), firingDistance);
+        const travel = Math.min(remaining, distance(robot, target));
+        if (!move(robot, target, travel, enemy)) break;
+        moving = true;
+        remaining -= travel;
+      }
     } else if (robot.goal !== enemy || span > preferred || !clear) {
       if (state.time >= robot.nextPath || !robot.waypoint || distance(robot, robot.waypoint) < 7) {
         robot.waypoint = nextWaypoint(robot, robot.goal, navigation);
         robot.nextPath = state.time + 0.20;
       }
       target = robot.waypoint;
+      moving = move(robot, target, speed * dt, enemy);
     }
-    const speed = (57 + 155 * robot.stats.speed / (robot.stats.speed + 85)) *
-      (active(robot, 'nitro') ? 1.2 : 1) * (muddy ? 0.55 : 1);
-    const moving = move(robot, target, speed * dt, enemy);
     turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
     if (moving !== robot.moving) log(robot, moving ? 'event.move' : 'event.hold');
     robot.moving = moving;
@@ -484,14 +502,16 @@ export function createBattle(loadouts, {
         continue;
       }
       const aim = robot.stats.aim / (robot.stats.aim + 70);
-      const evasion = enemy.stats.evasion / (enemy.stats.evasion + 70);
+      const dodgeChance = enemy.stats.evasion > 0
+        ? clamp(1 - robot.stats.aim / enemy.stats.evasion, 0, 1)
+        : 0;
       const roll = random();
       const accuracy = 0.78 + 0.21 * aim;
       if (roll >= accuracy) {
         log(robot, 'event.miss', `guns.${item.key}.name`);
         continue;
       }
-      if (roll >= accuracy * (1 - 0.72 * evasion * (1 - aim * 0.65))) {
+      if (roll >= accuracy * (1 - dodgeChance)) {
         const side = Math.atan2(enemy.y - robot.y, enemy.x - robot.x) + Math.PI / 2;
         const dx = Math.cos(side) * 11;
         const dy = Math.sin(side) * 11;

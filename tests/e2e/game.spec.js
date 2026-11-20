@@ -26,7 +26,7 @@ test('o hangar aplica o orçamento de atributos e restaura as escolhas após rec
 
   await hp.press('End');
   await expect(hp).toHaveValue(String(maxHP));
-  await expect(bay.locator('[data-attribute="hp"] .attribute-value')).toHaveText(maxHP.toLocaleString('en-US'));
+  await expect(bay.locator('[data-attribute="hp"] .attribute-value')).toHaveValue(String(maxHP));
   await expect(budget).toHaveText('0');
   await expect(defense).toHaveAttribute('max', String(ATTRIBUTES_BASE));
   await expect(defense).toBeDisabled();
@@ -46,6 +46,34 @@ test('o hangar aplica o orçamento de atributos e restaura as escolhas após rec
   await expect(bay.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled();
 });
 
+test('o hangar aceita valores digitados e os sincroniza com os sliders', async ({ page }) => {
+  await page.goto('/');
+  const bay = page.locator('.bay').first();
+  const hp = bay.getByRole('spinbutton', { name: /^HP value/ });
+  const slider = bay.getByRole('slider', { name: /^HP\b/ });
+  const max = ATTRIBUTES_BASE + ATTRIBUTES_POINTS;
+
+  await hp.fill(String(max + 1));
+  await hp.press('Enter');
+  await expect(hp).toHaveValue(String(max));
+  await expect(slider).toHaveValue(String(max));
+  await expect(bay.locator('.budget output')).toHaveText('0');
+
+  await slider.press('ArrowLeft');
+  await expect(hp).toHaveValue(String(max - 1));
+  await hp.fill('');
+  await hp.press('Tab');
+  await expect(hp).toHaveValue(String(max - 1));
+
+  await hp.fill(String(ATTRIBUTES_BASE + 1));
+  await hp.press('Tab');
+  await expect(slider).toHaveValue(String(ATTRIBUTES_BASE + 1));
+  await page.reload();
+  await expect(hp).toHaveValue(String(ATTRIBUTES_BASE + 1));
+  await bay.getByRole('button', { name: 'Ready', exact: true }).click();
+  await expect(hp).toBeDisabled();
+});
+
 test('o hangar distribui e limpa os pontos de cada robô', async ({ page }) => {
   await page.goto('/');
   const first = page.locator('.bay').first();
@@ -62,7 +90,7 @@ test('o hangar distribui e limpa os pontos de cada robô', async ({ page }) => {
   await randomize.click();
   await expect(first.locator('.budget output')).toHaveText('0');
   await expect(randomize).toBeDisabled();
-  const stats = await first.locator('.attribute input').evaluateAll(inputs =>
+  const stats = await first.locator('.attribute input[type="range"]').evaluateAll(inputs =>
     inputs.map(input => Number(input.value)));
   expect(stats[0]).toBeGreaterThanOrEqual(hp);
   expect(stats.reduce((sum, value) => sum + value - ATTRIBUTES_BASE, 0)).toBe(ATTRIBUTES_POINTS);
