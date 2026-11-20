@@ -15,7 +15,7 @@ const languageSelect = byId('language');
 const formatHP = value => value > 0 && value < 0.1
   ? `<${numberFormat.format(0.1)}` : numberFormat.format(value);
 const hpAmount = value => t('hpAmount', { value, unit: t('hpUnit') });
-const pilotName = id => t(`pilot.${id}`);
+const pilotName = id => pilots[id].name;
 const timecode = seconds => [Math.floor(seconds / 60), Math.floor(seconds % 60)]
   .map(value => String(value).padStart(2, '0')).join(':');
 const equipmentCatalogs = { guns, utils, strategy: { advance: {}, distance: {}, flank: {} } };

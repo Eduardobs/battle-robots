@@ -22,8 +22,6 @@ export default {
   "damage": "Dano",
   "events": "Eventos da batalha",
   "player": "Jogador {number}",
-  "pilot.0": "Vetor",
-  "pilot.1": "Pulso",
   "configuring": "Configurando",
   "attributes": "Atributos",
   "points": "pontos livres",

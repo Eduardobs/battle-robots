@@ -87,7 +87,7 @@ h1 { font: 800 clamp(2.75rem, 5.5vw, 4.45rem)/.96 var(--display); text-transform
 }
 .pilot-title { position: relative; z-index: 2; }
 .pilot-title .eyebrow { color: var(--accent); }
-.pilot-title h2 { font: 800 clamp(2.8rem, 5vw, 4.2rem)/.94 var(--display); text-transform: uppercase; margin: 4px 0 13px; }
+.pilot-title h2 { font: 800 clamp(2.8rem, 5vw, 4.2rem)/.94 var(--display); margin: 4px 0 13px; }
 .pilot-state { color: var(--muted); font: 500 .75rem var(--mono); display: inline-flex; align-items: center; gap: 7px; }
 .pilot-state i { transform: rotate(45deg); }
 .is-ready .pilot-state { color: var(--lime); }
@@ -160,7 +160,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .score, .timer { padding: 9px 12px; border: 1px solid var(--border); background: var(--panel); }
 .score { border-top-color: var(--accent); color: var(--accent); }
 .score > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
-.score strong { font: 800 1.35rem var(--display); text-transform: uppercase; }
+.score strong { font: 800 1.35rem var(--display); }
 .score-hp, .score-tools { font: 500 .75rem var(--mono); }
 .score-hp { text-align: right; }
 .hp-track { margin-top: 6px; }
@@ -173,7 +173,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 canvas { display: block; width: 100%; height: auto; background: #171a1c; }
 .result-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 10px; background: #090c0cc9; }
 .result-card { width: min(370px, 100%); padding: clamp(10px, 3vw, 28px); border: 1px solid var(--lime); background: #1a1e1c; text-align: center; }
-.result-card h2 { margin: 5px 0; font: 800 clamp(1.8rem, 6vw, 3.4rem)/1 var(--display); text-transform: uppercase; }
+.result-card h2 { margin: 5px 0; font: 800 clamp(1.8rem, 6vw, 3.4rem)/1 var(--display); }
 .result-card p:not(.eyebrow) { color: var(--muted); font: 500 .83rem/1.4 var(--mono); }
 .battle-log { margin-top: 14px; border: 1px solid var(--border); background: var(--inset); }
 .battle-log h2 { padding: 9px 12px; }

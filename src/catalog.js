@@ -21,8 +21,8 @@ export const utils = {
 };
 
 export const pilots = [
-  { color: '#ff8b54', ink: '#ffb183', className: 'orange' },
-  { color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
+  { name: 'Red', color: '#ff8b54', ink: '#ffb183', className: 'orange' },
+  { name: 'Blue', color: '#64d5fe', ink: '#a0e7ff', className: 'blue' },
 ];
 
 const icons = {
