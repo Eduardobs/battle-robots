@@ -3,12 +3,12 @@ import test from 'node:test';
 import { createBattle, EDGE, generateArena, HEIGHT, STEP, WIDTH } from '../../src/battle.js';
 import { guns } from '../../src/catalog.js';
 
-function loadout({ hp = 100, weapons = [], tools = [] } = {}) {
+function loadout({ hp = 100, weapons = [], tools = [], strategy = 'advance' } = {}) {
   return {
     stats: { hp, defense: 0, attack: 0, speed: 10, evasion: 0, aim: 0 },
     guns: weapons,
     utils: tools,
-    strategy: 'advance',
+    strategy,
   };
 }
 
@@ -97,3 +97,48 @@ test('um drop de vida é coletado e a cura respeita o HP máximo', () => {
   assert.ok(events.some(event => event.robot === 0 && event.action === 'event.collect' &&
     event.item === 'drop.health'));
 });
+
+for (const strategy of ['distance', 'flank']) {
+  test(`${strategy} recua até perto do alcance da pistola e continua atirando`, () => {
+    const { state, step, events } = duel([
+      loadout({ weapons: ['pistol', 'saw'], strategy }), loadout(),
+    ], { random: () => 0.2 });
+    const [robot, enemy] = state.robots;
+    Object.assign(robot, { x: 250, y: 280 });
+    Object.assign(enemy, { x: 100, y: 280, goal: enemy, thinkAt: Infinity });
+    for (let frame = 0; frame < 180; frame++) step();
+    const gap = Math.hypot(robot.x - enemy.x, robot.y - enemy.y);
+    assert.ok(gap >= guns.pistol.range - 15 && gap <= guns.pistol.range, `distância: ${gap}`);
+    assert.ok(events.some(event => event.time > 2 && event.action === 'event.hit' &&
+      event.item === 'guns.pistol.name'));
+    if (strategy === 'flank') assert.ok(Math.abs(robot.y - 280) > 20);
+  });
+
+  test(`${strategy} usa o gancho temporário para se afastar pela parede`, () => {
+    const { state, step, events } = duel([
+      loadout({ weapons: ['pistol'], strategy }), loadout(),
+    ]);
+    const [robot, enemy] = state.robots;
+    Object.assign(robot, { x: 400, y: 200 });
+    Object.assign(enemy, { x: 270, y: 200, goal: enemy, thinkAt: Infinity });
+    robot.guns.push({ key: 'hook', ready: 0, expires: 10 });
+    step();
+    assert.ok(events.some(event => event.action === 'event.hookWall'));
+    assert.ok(robot.pull);
+    for (let frame = 0; frame < 20; frame++) step();
+    assert.ok(Math.hypot(robot.x - enemy.x, robot.y - enemy.y) > 165);
+    assert.equal(enemy.pull, null);
+  });
+
+  test(`${strategy} poupa o gancho quando não há parede para recuar`, () => {
+    const { state, step, events } = duel([
+      loadout({ weapons: ['pistol', 'hook'], strategy }), loadout(),
+    ]);
+    const [robot, enemy] = state.robots;
+    enemy.x = robot.x + 100;
+    step();
+    assert.equal(robot.guns[1].ready, 0);
+    assert.equal(enemy.pull, null);
+    assert.ok(events.some(event => event.item === 'guns.pistol.name'));
+  });
+}

@@ -10,9 +10,19 @@ export const STEP = 1 / 60;
 const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const keepsRange = robot => robot.strategy === 'distance' || robot.strategy === 'flank';
+const preferredRange = range => range - Math.min(10, range * 0.1);
+const steeringOffsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6];
 const expand = (rect, pad) => ({
   x: rect.x - pad, y: rect.y - pad, w: rect.w + pad * 2, h: rect.h + pad * 2,
 });
+
+function firingRange(robot) {
+  const ranges = robot.guns.filter(item => !keepsRange(robot) || item.key !== 'hook' ||
+    robot.guns.length === 1).map(item => guns[item.key].range);
+  if (!ranges.length) return RADIUS * 2 + 4;
+  return keepsRange(robot) ? Math.max(...ranges) : Math.min(...ranges);
+}
 
 function impact(a, b, rect) {
   let enter = 0;
@@ -235,6 +245,9 @@ export function createBattle(loadouts, {
           bestCost = value;
         }
       }
+    } else if (keepsRange(robot) && robot.guns.length) {
+      intent = 'fight';
+      goal = enemy;
     } else if (nearCorner || danger || state.time >= robot.maneuverAt || !robot.guns.length) {
       intent = nearCorner || danger ? 'retreat' : 'reposition';
       const score = point => {
@@ -317,6 +330,36 @@ export function createBattle(loadouts, {
     robot.angle += clamp(shortest, -dt * 11, dt * 11);
   }
 
+  function rangedTarget(robot, enemy, span, range) {
+    const preferred = preferredRange(range);
+    const flank = robot.strategy === 'flank';
+    if (!flank && Math.abs(span - preferred) <= 2) return robot;
+    const aim = Math.atan2(enemy.y - robot.y, enemy.x - robot.x);
+    const lookAhead = flank ? 32 : Math.min(32, Math.abs(span - preferred));
+    const radial = clamp((span - preferred) / lookAhead, -1, 1);
+    const heading = aim + (flank ? Math.acos(radial) : radial > 0 ? 0 : Math.PI);
+    const flankWeight = flank ? 0.55 * (1 - Math.abs(radial)) : 0;
+    const rangeCost = gap => Math.abs(gap - preferred) + Math.max(0, gap - range) * 3;
+    let target = robot;
+    let bestScore = -rangeCost(span);
+    for (const offset of steeringOffsets) {
+      const angle = heading + offset * Math.PI / 6;
+      const point = {
+        x: clamp(robot.x + Math.cos(angle) * lookAhead, EDGE + RADIUS, WIDTH - EDGE - RADIUS),
+        y: clamp(robot.y + Math.sin(angle) * lookAhead, EDGE + RADIUS, HEIGHT - EDGE - RADIUS),
+      };
+      if (blocked(robot, point, navigation.solids) || blocked(point, enemy, state.walls)) continue;
+      const lateral = (point.y - robot.y) * Math.cos(aim) - (point.x - robot.x) * Math.sin(aim);
+      const score = -rangeCost(distance(point, enemy)) +
+        (Math.abs(lateral) + lateral * 0.05) * flankWeight;
+      if (score > bestScore) {
+        target = point;
+        bestScore = score;
+      }
+    }
+    return target;
+  }
+
   function walk(robot, enemy, dt) {
     const muddy = inMud(robot, state.mud);
     if (muddy !== robot.muddy) log(robot, muddy ? 'event.enterMud' : 'event.leaveMud');
@@ -334,20 +377,18 @@ export function createBattle(loadouts, {
 
     const span = distance(robot, enemy);
     const clear = !blocked(robot, enemy, state.walls);
-    const firingDistance = robot.guns.length
-      ? Math.min(...robot.guns.map(item => guns[item.key].range)) : RADIUS * 2 + 4;
-    const aim = Math.atan2(enemy.y - robot.y, enemy.x - robot.x);
+    const firingDistance = firingRange(robot);
     const preferred = firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83);
     if (state.time >= robot.thinkAt) chooseGoal(robot, enemy, firingDistance);
     let target = robot;
-    if (robot.goal !== enemy || span > preferred || !clear) {
+    if (keepsRange(robot) && robot.goal === enemy && clear) {
+      target = rangedTarget(robot, enemy, span, firingDistance);
+    } else if (robot.goal !== enemy || span > preferred || !clear) {
       if (state.time >= robot.nextPath || !robot.waypoint || distance(robot, robot.waypoint) < 7) {
         robot.waypoint = nextWaypoint(robot, robot.goal, navigation);
         robot.nextPath = state.time + 0.20;
       }
       target = robot.waypoint;
-    } else if (robot.strategy === 'flank') {
-      target = { x: robot.x - Math.sin(aim) * 60, y: robot.y + Math.cos(aim) * 60 };
     }
     const speed = (57 + 155 * robot.stats.speed / (robot.stats.speed + 85)) *
       (active(robot, 'nitro') ? 1.2 : 1) * (muddy ? 0.55 : 1);
@@ -377,11 +418,59 @@ export function createBattle(loadouts, {
     }
   }
 
+  function retreatAnchor(robot, enemy, range) {
+    const span = distance(robot, enemy);
+    const preferred = preferredRange(firingRange(robot));
+    if (robot.pull || span + RADIUS >= preferred) return null;
+    let anchor = null;
+    let bestScore = 0;
+    for (const { x, y, w, h } of state.walls) {
+      const nearX = clamp(robot.x, x, x + w);
+      const nearY = clamp(robot.y, y, y + h);
+      const targets = [
+        { x, y: nearY }, { x: x + w, y: nearY }, { x: nearX, y }, { x: nearX, y: y + h },
+        { x, y }, { x: x + w, y }, { x, y: y + h }, { x: x + w, y: y + h },
+      ];
+      for (const target of targets) {
+        const contact = firstContact(robot, target, state.walls);
+        const reach = distance(robot, contact);
+        if (reach > range || reach <= RADIUS) continue;
+        const clearance = firstContact(robot, contact, navigation.solids);
+        const travel = Math.min(325 * 0.6, distance(robot, clearance) - 2);
+        if (travel <= RADIUS) continue;
+        const landing = pointAlong(robot, contact, travel / reach);
+        if ((landing.x - robot.x) * (robot.x - enemy.x) +
+            (landing.y - robot.y) * (robot.y - enemy.y) < 0) continue;
+        const gain = distance(landing, enemy) - span;
+        if (gain <= RADIUS) continue;
+        const score = preferred - span - Math.abs(distance(landing, enemy) - preferred) +
+          (blocked(landing, enemy, state.walls) ? 0 : 12);
+        if (score > bestScore) {
+          bestScore = score;
+          anchor = { contact, landing };
+        }
+      }
+    }
+    return anchor;
+  }
+
   function fire(robot, enemy) {
     for (const item of robot.guns) {
       if (state.result) break;
       const weapon = guns[item.key];
       if (item.ready > state.time) continue;
+      if (item.key === 'hook' && keepsRange(robot)) {
+        const anchor = retreatAnchor(robot, enemy, weapon.range);
+        if (anchor) {
+          item.ready = state.time + weapon.interval;
+          robot.pull = { target: anchor.landing, until: state.time + 0.6, stop: 0.1 };
+          effect('hook', robot, anchor.contact, 0.35);
+          effect('tether', robot, anchor.contact, 0.5, { attached: robot.id });
+          log(robot, 'event.hookWall');
+          continue;
+        }
+        if (robot.guns.length > 1) continue;
+      }
       const contact = firstContact(robot, enemy, state.walls);
       const wall = distance(contact, enemy) > 0.1;
       if (distance(robot, contact) > weapon.range || (wall && item.key !== 'hook')) continue;
