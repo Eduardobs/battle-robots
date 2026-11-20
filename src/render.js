@@ -5,12 +5,12 @@ import { damageFormat, t } from './i18n.js';
 const dropSymbols = { health: '+', attribute: '↑', teleport: '↯' };
 
 export function createRenderer(canvas) {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: false });
   const backdrop = document.createElement('canvas');
   backdrop.width = WIDTH;
   backdrop.height = HEIGHT;
-  const ground = backdrop.getContext('2d');
-  let paintedState;
+  const ground = backdrop.getContext('2d', { alpha: false });
+  let paintedWalls;
 
   const rect = (pen, fill, x, y, w, h) => {
     pen.fillStyle = fill;
@@ -197,9 +197,9 @@ export function createRenderer(canvas) {
   }
 
   return function render(state) {
-    if (state !== paintedState) {
+    if (state.walls !== paintedWalls) {
       drawGround(state);
-      paintedState = state;
+      paintedWalls = state.walls;
     }
     ctx.drawImage(backdrop, 0, 0);
     for (const drop of state.drops) {

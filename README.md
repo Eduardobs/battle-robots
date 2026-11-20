@@ -18,6 +18,8 @@ Se o robô já tiver todos os itens da categoria sorteada, recebe um bônus de a
 
 ## Rodar localmente
 
+O jogo foi projetado para computadores com resolução Full HD (1920 × 1080) ou superior.
+
 Sirva a raiz do repositório com um servidor HTTP. O jogo não exige instalação de dependências.
 
 ```sh

@@ -22,8 +22,14 @@ const timecode = seconds => [Math.floor(seconds / 60), Math.floor(seconds % 60)]
 const equipmentCatalogs = { guns, utils, strategy: { advance: {}, distance: {}, flank: {} } };
 let bayList = [];
 let scores = [];
+let countdown;
+let displayedSeconds;
 let battleState;
+const MAX_EVENT_ROWS = 160;
+const SCORE_INTERVAL = 0.1;
+const MAX_FRAME_DELAY = 0.1;
 const eventRows = [];
+const pendingEvents = [];
 let frameId = 0;
 
 const loadouts = pilots.map((_, id) => ({
@@ -316,8 +322,7 @@ function updateEvent(row, { time, robot, action, item, damage }) {
   values.forEach((value, index) => { row.children[index].textContent = value; });
 }
 
-function appendEvent(event) {
-  const follow = events.scrollTop + events.clientHeight >= events.scrollHeight - 24;
+function createEventRow(event) {
   const row = document.createElement('li');
   for (const className of ['event-time', pilots[event.robot]?.className ?? '', 'event-action', 'event-damage']) {
     const cell = document.createElement('span');
@@ -325,9 +330,37 @@ function appendEvent(event) {
     row.append(cell);
   }
   updateEvent(row, event);
-  eventRows.push({ row, event });
-  events.append(row);
+  return row;
+}
+
+function queueEvent(event) {
+  if (event.action === 'event.move' || event.action === 'event.hold') return;
+  pendingEvents.push(event);
+}
+
+function flushEvents() {
+  if (!pendingEvents.length) return;
+  const follow = events.scrollTop + events.clientHeight >= events.scrollHeight - 24;
+  const overflow = eventRows.length + pendingEvents.length - MAX_EVENT_ROWS;
+  if (overflow > 0) {
+    for (const { row } of eventRows.splice(0, overflow)) row.remove();
+  }
+  const batch = document.createDocumentFragment();
+  for (let index = Math.max(0, pendingEvents.length - MAX_EVENT_ROWS); index < pendingEvents.length; index++) {
+    const event = pendingEvents[index];
+    const row = createEventRow(event);
+    eventRows.push({ row, event });
+    batch.append(row);
+  }
+  pendingEvents.length = 0;
+  events.append(batch);
   if (follow) events.scrollTop = events.scrollHeight;
+}
+
+function clearEvents() {
+  pendingEvents.length = 0;
+  eventRows.length = 0;
+  events.replaceChildren();
 }
 
 function scorePanel(pilot, id) {
@@ -339,6 +372,8 @@ function buildScoreboard() {
   byId('scoreboard').innerHTML = `${scorePanel(pilots[0], 0)}
     <div class="timer"><span class="eyebrow">${t('remainingTime')}</span><strong id="countdown"></strong></div>
     ${scorePanel(pilots[1], 1)}`;
+  countdown = byId('countdown');
+  displayedSeconds = undefined;
   scores = [...document.querySelectorAll('.score')].map(score => ({
     hp: score.querySelector('.score-hp'), bar: score.querySelector('.hp-track i'), tools: score.querySelector('.score-tools'),
   }));
@@ -347,7 +382,7 @@ function buildScoreboard() {
 function updateRobotDetails(robot) {
   const panel = robotDetails[robot.id];
   const signature = JSON.stringify([language, robot.stats, Object.keys(robot.boosts),
-    robot.guns.map(item => item.key), robot.utils.map(item => item.key)]);
+    robot.guns.map(item => [item.key, item.expires]), robot.utils.map(item => [item.key, item.expires])]);
   if (panel.dataset.signature === signature) return;
   panel.dataset.signature = signature;
 
@@ -370,13 +405,21 @@ function updateRobotDetails(robot) {
 }
 
 function updateScore(state) {
-  byId('countdown').textContent = timecode(Math.ceil(state.duration - state.time));
+  const seconds = Math.ceil(state.duration - state.time);
+  if (displayedSeconds !== seconds) {
+    displayedSeconds = seconds;
+    countdown.textContent = timecode(seconds);
+  }
   state.robots.forEach((robot, id) => {
     const score = scores[id];
-    score.hp.textContent = t('hpScore', {
-      current: formatHP(robot.hp), max: numberFormat.format(robot.stats.hp), unit: t('hpUnit'),
-    });
-    score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
+    if (score.currentHP !== robot.hp || score.maxHP !== robot.stats.hp) {
+      score.currentHP = robot.hp;
+      score.maxHP = robot.stats.hp;
+      score.hp.textContent = t('hpScore', {
+        current: formatHP(robot.hp), max: numberFormat.format(robot.stats.hp), unit: t('hpUnit'),
+      });
+      score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
+    }
     const tools = [
       robot.intent && t(`intent.${robot.intent}`),
       ...robot.utils.filter(item => item.until > state.time).map(item => t(`utils.${item.key}.name`)),
@@ -398,26 +441,37 @@ function showResult(state, focus = true) {
 }
 
 function start() {
-  eventRows.length = 0;
-  events.replaceChildren();
+  clearEvents();
   result.hidden = true;
   byId('battle-status').textContent = t('intent.fight');
   setStage(true);
   byId('arena-title').focus({ preventScroll: true });
-  const battle = createBattle(loadouts, { onEvent: appendEvent });
-  battleState = battle.state;
+  const battle = createBattle(loadouts, { onEvent: queueEvent });
+  const { state } = battle;
+  battleState = state;
+  render(state);
+  updateScore(state);
+  flushEvents();
   let previous = performance.now();
   let elapsed = 0;
+  let nextScore = SCORE_INTERVAL;
   function frame(timestamp) {
-    elapsed += Math.max(0, (timestamp - previous) / 1000);
+    elapsed += Math.min(MAX_FRAME_DELAY, Math.max(0, (timestamp - previous) / 1000));
     previous = timestamp;
-    while (elapsed >= STEP && !battle.state.result) {
+    const time = state.time;
+    while (elapsed >= STEP && !state.result) {
       battle.step();
       elapsed -= STEP;
     }
-    render(battle.state);
-    updateScore(battle.state);
-    if (battle.state.result) showResult(battle.state);
+    if (state.time !== time) {
+      render(state);
+      if (state.result || state.time >= nextScore) {
+        updateScore(state);
+        nextScore = state.time + SCORE_INTERVAL;
+      }
+      flushEvents();
+    }
+    if (state.result) showResult(state);
     else frameId = requestAnimationFrame(frame);
   }
   frameId = requestAnimationFrame(frame);
@@ -426,8 +480,7 @@ function start() {
 byId('reset').addEventListener('click', () => {
   cancelAnimationFrame(frameId);
   battleState = undefined;
-  eventRows.length = 0;
-  events.replaceChildren();
+  clearEvents();
   loadouts.forEach(loadout => { loadout.ready = false; });
   bayList.forEach((_, id) => refresh(id));
   setStage(false);

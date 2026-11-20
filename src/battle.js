@@ -7,6 +7,7 @@ export const EDGE = 18;
 export const RADIUS = 19;
 export const STEP = 1 / 60;
 
+const rectangleAxes = [['x', 'w'], ['y', 'h']];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const expand = (rect, pad) => ({
@@ -16,7 +17,7 @@ const expand = (rect, pad) => ({
 function impact(a, b, rect) {
   let enter = 0;
   let leave = 1;
-  for (const [axis, length] of [['x', 'w'], ['y', 'h']]) {
+  for (const [axis, length] of rectangleAxes) {
     const delta = b[axis] - a[axis];
     const min = rect[axis];
     const max = min + rect[length];
@@ -24,9 +25,10 @@ function impact(a, b, rect) {
       if (a[axis] < min || a[axis] > max) return null;
       continue;
     }
-    const times = [(min - a[axis]) / delta, (max - a[axis]) / delta];
-    enter = Math.max(enter, Math.min(...times));
-    leave = Math.min(leave, Math.max(...times));
+    const near = (min - a[axis]) / delta;
+    const far = (max - a[axis]) / delta;
+    enter = Math.max(enter, Math.min(near, far));
+    leave = Math.min(leave, Math.max(near, far));
     if (enter > leave) return null;
   }
   return enter;
@@ -135,6 +137,9 @@ export function createBattle(loadouts, {
     }
   }
 
+  const maneuverPositions = positions.filter(point =>
+    !(Math.min(point.x, WIDTH - point.x) < 150 && Math.min(point.y, HEIGHT - point.y) < 125));
+
   function freePositions() {
     return positions.filter(point => robots.every(robot => distance(point, robot) > 65) &&
       state.drops.every(drop => distance(point, drop) > 32));
@@ -221,7 +226,15 @@ export function createBattle(loadouts, {
       const cost = drop => distance(robot, drop) +
         (blocked(robot, drop, navigation.solids) ? 75 : 0) +
         Math.max(0, distance(robot, drop) - distance(enemy, drop)) * 0.45;
-      goal = state.drops.reduce((best, drop) => cost(drop) < cost(best) ? drop : best);
+      goal = state.drops[0];
+      let bestCost = cost(goal);
+      for (const drop of state.drops) {
+        const value = cost(drop);
+        if (value < bestCost) {
+          goal = drop;
+          bestCost = value;
+        }
+      }
     } else if (nearCorner || danger || state.time >= robot.maneuverAt || !robot.guns.length) {
       intent = nearCorner || danger ? 'retreat' : 'reposition';
       const score = point => {
@@ -232,9 +245,15 @@ export function createBattle(loadouts, {
           Math.min(140, point.x, WIDTH - point.x, point.y, HEIGHT - point.y) * 0.9 +
           (cover && danger ? 75 : 0) - (inMud(point, arena.mud) ? 55 : 0);
       };
-      const candidates = positions.filter(point =>
-        !(Math.min(point.x, WIDTH - point.x) < 150 && Math.min(point.y, HEIGHT - point.y) < 125));
-      goal = candidates.reduce((best, point) => score(point) > score(best) ? point : best);
+      goal = maneuverPositions[0];
+      let bestScore = score(goal);
+      for (const point of maneuverPositions) {
+        const value = score(point);
+        if (value > bestScore) {
+          goal = point;
+          bestScore = value;
+        }
+      }
       robot.maneuverAt = state.time + 3 + random() * 2;
     } else {
       intent = 'fight';
@@ -407,6 +426,7 @@ export function createBattle(loadouts, {
     }
   }
 
+  const orders = [[robots[0], robots[1]], [robots[1], robots[0]]];
   let turn = random() < 0.5 ? 0 : 1;
   log(null, 'event.start');
 
@@ -415,8 +435,13 @@ export function createBattle(loadouts, {
     const nextTime = state.time + dt;
     const delta = Math.min(dt, state.duration - state.time);
     state.time = nextTime + 1e-8 >= state.duration ? state.duration : nextTime;
-    state.effects = state.effects.filter(event => event.end > state.time);
-    const order = [robots[turn], robots[1 - turn]];
+    const effects = state.effects;
+    let activeCount = 0;
+    for (const event of effects) {
+      if (event.end > state.time) effects[activeCount++] = event;
+    }
+    effects.length = activeCount;
+    const order = orders[turn];
     turn = 1 - turn;
     if (state.time + 1e-8 >= nextDrop) {
       spawnDrop();
@@ -427,10 +452,19 @@ export function createBattle(loadouts, {
       useTools(robot, robots[1 - robot.id]);
       walk(robot, robots[1 - robot.id], delta);
     }
-    for (const drop of [...state.drops]) {
-      const collectors = order.filter(robot => distance(robot, drop) <= RADIUS + 11 && !blocked(robot, drop, arena.walls));
-      collectors.sort((a, b) => distance(a, drop) - distance(b, drop));
-      if (collectors.length) collect(collectors[0], drop);
+    for (let index = 0; index < state.drops.length;) {
+      const drop = state.drops[index];
+      let collector;
+      let nearest = Infinity;
+      for (const robot of order) {
+        const gap = distance(robot, drop);
+        if (gap <= RADIUS + 11 && gap < nearest && !blocked(robot, drop, arena.walls)) {
+          collector = robot;
+          nearest = gap;
+        }
+      }
+      if (collector) collect(collector, drop);
+      else index++;
     }
     for (const robot of order) {
       if (robot.burn && robot.burn.next <= state.time + 1e-8 && robot.burn.next <= robot.burn.until + 1e-8) {
