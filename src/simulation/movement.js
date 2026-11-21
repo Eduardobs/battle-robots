@@ -1,4 +1,4 @@
-import { clampToSafeInterior, EDGE, HEIGHT, inMud, RADIUS, touchesSpikes, WIDTH, withinSpikeBorder } from './arena.js';
+import { clampToSafeInterior, EDGE, HEIGHT, inMud, RADIUS, rollerContact, touchesSpikes, WIDTH, withinSpikeBorder } from './arena.js';
 import { CONTACT_RANGE, ECHO_RADIUS, firingRange, keepsRange, preferredRange, THAW_DURATION, weaponRange } from './combat-rules.js';
 import { blocked, clamp, closestFraction, distance, expand, impact, inside, pathClearance, pointAlong } from './geometry.js';
 import { nextWaypoint } from './navigation.js';
@@ -10,7 +10,7 @@ const DODGE_LOOKAHEAD = 0.45;
 const SPIKE_SPEED = 0.5;
 const steeringOffsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6];
 
-export function createMovement(state, navigation, maneuverPositions, { random, active, log }) {
+export function createMovement(state, navigation, maneuverPositions, { random, active, log, crush }) {
   const { robots } = state;
 
   function movementSpeed(robot) {
@@ -66,6 +66,31 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     return null;
   }
 
+  function rollerGoal(robot, enemy) {
+    if (robot.stats.power <= enemy.stats.power || distance(robot, enemy) > 175) return null;
+    for (const roller of state.rollers) {
+      const target = { x: roller.x + roller.w / 2, y: roller.y + roller.h / 2 };
+      const gap = distance(enemy, target);
+      if (gap > 135 || blocked(enemy, target, navigation.solids)) continue;
+      const dx = (target.x - enemy.x) / gap;
+      const dy = (target.y - enemy.y) / gap;
+      const behind = (enemy.x - robot.x) * dx + (enemy.y - robot.y) * dy;
+      const lateral = (robot.x - enemy.x) * -dy + (robot.y - enemy.y) * dx;
+      if (behind > 0 && Math.abs(lateral) < behind * 0.2 &&
+          !blocked(robot, enemy, navigation.solids)) return enemy;
+      let point = { x: enemy.x - dx * (CONTACT_RANGE + 8), y: enemy.y - dy * (CONTACT_RANGE + 8) };
+      if (pathClearance(enemy, robot, point) < CONTACT_RANGE - 0.01) {
+        const side = Math.sign(lateral) || 1;
+        const offset = side * (CONTACT_RANGE + 12);
+        const depth = Math.abs(lateral) < CONTACT_RANGE ? behind : CONTACT_RANGE + 8;
+        point = { x: enemy.x - dx * depth - dy * offset,
+          y: enemy.y - dy * depth + dx * offset };
+      }
+      if (!withinSpikeBorder(point) && !blocked(robot, point, navigation.barriers)) return point;
+    }
+    return null;
+  }
+
   function chooseGoal(robot, enemy, range) {
     const span = distance(robot, enemy);
     const nearCorner = Math.min(robot.x, WIDTH - robot.x) < 145 &&
@@ -83,6 +108,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     const cooling = robot.strategy === 'skirmish' && robot.guns[0]?.ready > state.time + 0.15;
     const intercept = robot.strategy === 'intercept' && robot.guns.length &&
       interceptPoint(robot, enemy, range);
+    const push = rollerGoal(robot, enemy);
     const echo = enemy.echo;
     if (echo && distance(robot, echo.point) <= ECHO_RADIUS + 8) {
       intent = 'retreat';
@@ -100,6 +126,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
           shortest = gap;
         }
       }
+    } else if (push) {
+      intent = 'push';
+      goal = push;
     } else if (intercept) {
       intent = 'intercept';
       goal = intercept;
@@ -181,6 +210,13 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       if (!contactWithOpponent && next[axis] === robot[axis]) continue;
       if (blocked(robot, next, navigation.solids) || (paths && (entersSpikes(robot, next) ||
           paths.some(path => entersProjectilePath(robot, next, axis, path))))) continue;
+      const contact = rollerContact(robot, next);
+      if (contact <= 1) {
+        if (paths) continue;
+        Object.assign(robot, pointAlong(robot, next, contact));
+        crush(robot);
+        return true;
+      }
       if (contactWithOpponent && movement) {
         movement.pressure = { x: (target.x - prior.x) / span, y: (target.y - prior.y) / span };
       }
@@ -193,13 +229,17 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     const [a, b] = robots;
     const [first, second] = movements.map(({ pressure }) => pressure);
     const difference = a.stats.power - b.stats.power;
-    if (!first || !second || !difference || Math.abs(distance(a, b) - CONTACT_RANGE) > 1e-8) return false;
+    if (!difference || Math.abs(distance(a, b) - CONTACT_RANGE) > 1e-8) return false;
 
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    if (first.x * dx + first.y * dy <= 0 || second.x * dx + second.y * dy >= 0) return false;
     const stronger = difference > 0 ? a : b;
+    const weaker = difference > 0 ? b : a;
     const direction = difference > 0 ? first : second;
+    const resistance = difference > 0 ? second : first;
+    const dx = weaker.x - stronger.x;
+    const dy = weaker.y - stronger.y;
+    if (!direction || direction.x * dx + direction.y * dy <= 0) return false;
+    const offensivePush = stronger.intent === 'push' && stronger.goal === weaker;
+    if (!offensivePush && (!resistance || resistance.x * dx + resistance.y * dy >= 0)) return false;
     const advantage = Math.abs(difference);
     let travel = movementSpeed(stronger) * dt * advantage / (advantage + PUSH_POWER_SCALE);
 
@@ -219,10 +259,15 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       if (entry <= 1) travel = travel * entry - 1e-8;
       if (travel <= 1e-8) return false;
     }
+    const contacts = robots.map(robot => rollerContact(robot,
+      { x: robot.x + direction.x * travel, y: robot.y + direction.y * travel }));
+    const entry = Math.min(...contacts);
+    if (entry <= 1) travel *= entry;
     for (const robot of robots) {
       robot.x += direction.x * travel;
       robot.y += direction.y * travel;
     }
+    if (entry <= 1) crush(robots[contacts.indexOf(entry)]);
     return true;
   }
 
@@ -351,6 +396,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       target = dodge || escape;
       moving = move(robot, target, speed * dt, enemy, paths, movement);
       robot.nextPath = 0;
+    } else if (robot.intent === 'push' && robot.goal === enemy && clear) {
+      target = enemy;
+      moving = move(robot, enemy, speed * dt, enemy, paths, movement);
     } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE &&
         (span <= firingDistance || !entersSpikes(robot, enemy))) {
       let remaining = speed * dt;

@@ -65,6 +65,24 @@ export function createRenderer(canvas) {
     }
   }
 
+  function drawRoller({ x, y, w, h }, time) {
+    const steel = ctx.createLinearGradient(0, y, 0, y + h);
+    steel.addColorStop(0, '#343e45');
+    steel.addColorStop(0.32, '#c7d2d5');
+    steel.addColorStop(0.58, '#839096');
+    steel.addColorStop(1, '#272f36');
+    rect(ctx, steel, x, y, w, h);
+    const phase = (time * 16) % 8;
+    for (let offset = 8; offset < w - 8; offset += 8) {
+      line(ctx, '#37424a', 2, { x: x + offset + phase / 2, y: y + 1 },
+        { x: x + offset + 4 + phase / 2, y: y + h - 1 });
+    }
+    for (const cap of [x, x + w - 5]) {
+      rect(ctx, '#dc9c38', cap, y, 5, h);
+      circle(ctx, '#303238', cap + 2.5, y + h / 2, 1.5);
+    }
+  }
+
   function drawGround(state) {
     rect(ground, '#14202c', 0, 0, WIDTH, HEIGHT);
     for (let x = 24; x < WIDTH; x += 24) {
@@ -248,6 +266,7 @@ export function createRenderer(canvas) {
       paintedWalls = state.walls;
     }
     ctx.drawImage(backdrop, 0, 0);
+    for (const roller of state.rollers) drawRoller(roller, state.time);
     for (const drop of state.drops) {
       const pulse = 16 + 2 * Math.sin(state.time * 5);
       circle(ctx, '#dbfb4866', drop.x, drop.y, pulse, 2);

@@ -1,6 +1,6 @@
 import { ATTRIBUTES_BASE, BATTLE_TIME_IN_SECONDS } from '../config.js';
 import { attributes, guns, utils } from './catalog.js';
-import { generateArena, HEIGHT, inMud, RADIUS, touchesSpikes, WIDTH, withinSpikeBorder } from './simulation/arena.js';
+import { generateArena, HEIGHT, inMud, RADIUS, rollerContact, touchesSpikes, WIDTH, withinSpikeBorder } from './simulation/arena.js';
 import { ECHO_RADIUS, THAW_DURATION, weaponRange } from './simulation/combat-rules.js';
 import { blocked, distance } from './simulation/geometry.js';
 import { createMovement } from './simulation/movement.js';
@@ -26,7 +26,7 @@ export function createBattle(loadouts, {
   random = Math.random, duration = BATTLE_TIME_IN_SECONDS, onEvent = () => {},
 } = {}) {
   const arena = generateArena(random);
-  const navigation = prepareNavigation(arena.walls, arena.spikePatches);
+  const navigation = prepareNavigation(arena.walls, [...arena.spikePatches, ...arena.rollers]);
   const robots = loadouts.map((loadout, id) => {
     const stats = { projectileSpeed: ATTRIBUTES_BASE, power: ATTRIBUTES_BASE, ...loadout.stats };
     const baseStats = Object.fromEntries(attributes.map(({ id }) => [id, stats[id]]));
@@ -249,7 +249,16 @@ export function createBattle(loadouts, {
     }
   }
 
-  const movement = createMovement(state, navigation, maneuverPositions, { random, active, log });
+  function crush(robot) {
+    const damage = robot.hp;
+    robot.hp = 0;
+    robot.report.damageTaken += damage;
+    log(robot, 'event.roller', null, damage);
+    effect('hit', robot, robot, 0.4, { amount: damage });
+    finish('knockout');
+  }
+
+  const movement = createMovement(state, navigation, maneuverPositions, { random, active, log, crush });
   const { advanceProjectile, fire } = createWeapons(state, navigation, movement, { random, damage, effect, log, recordShot });
   const { walk, pushOpponents } = movement;
   const orders = [[robots[0], robots[1]], [robots[1], robots[0]]];
@@ -258,6 +267,8 @@ export function createBattle(loadouts, {
 
   function step(dt = STEP) {
     if (state.result) return;
+    const touching = robots.find(robot => rollerContact(robot, robot) === 0);
+    if (touching) return crush(touching);
     const nextTime = state.time + dt;
     const delta = Math.min(dt, state.duration - state.time);
     state.time = nextTime + 1e-8 >= state.duration ? state.duration : nextTime;
@@ -294,6 +305,7 @@ export function createBattle(loadouts, {
       useTools(robot, robots[1 - robot.id]);
       const movement = movements[robot.id];
       movement.walked = canAct(robot) && walk(robot, robots[1 - robot.id], delta, movement);
+      if (state.result) return;
       const hologram = robot.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
       if (hologram) {
         const { decoy, heading } = hologram;
@@ -303,6 +315,7 @@ export function createBattle(loadouts, {
       }
     }
     const pushed = pushOpponents(movements, delta);
+    if (state.result) return;
     for (const robot of order) {
       const { x, y, walked } = movements[robot.id];
       if (walked === undefined && !pushed) continue;

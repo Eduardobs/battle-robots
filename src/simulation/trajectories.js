@@ -1,5 +1,5 @@
 import { EDGE, HEIGHT, RADIUS, WIDTH } from './arena.js';
-import { blocked, distance, impact, pathClearance, pointAlong, rectangleAxes } from './geometry.js';
+import { blocked, circleImpact, distance, impact, pathClearance, pointAlong, rectangleAxes } from './geometry.js';
 
 export const DODGE_CLEARANCE = RADIUS + 4;
 
@@ -34,18 +34,7 @@ export function projectileLeg(from, direction, range, walls, previousWall) {
 }
 
 export function robotImpact(from, to, target, radius = RADIUS) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const x = from.x - target.x;
-  const y = from.y - target.y;
-  const gap = x * x + y * y - radius ** 2;
-  if (gap <= 0) return 0;
-  const lengthSquared = dx * dx + dy * dy;
-  const projection = x * dx + y * dy;
-  const discriminant = projection ** 2 - lengthSquared * gap;
-  if (!lengthSquared || projection >= 0 || discriminant < 0) return Infinity;
-  const entry = (-projection - Math.sqrt(discriminant)) / lengthSquared;
-  return entry <= 1 ? entry : Infinity;
+  return circleImpact(from, to, target, radius);
 }
 
 export function entersProjectilePath(start, end, axis, { from, to }) {

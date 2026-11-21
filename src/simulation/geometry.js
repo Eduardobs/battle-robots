@@ -57,3 +57,18 @@ export function closestFraction(from, to, point) {
 export function pathClearance(point, from, to) {
   return distance(point, pointAlong(from, to, closestFraction(from, to, point)));
 }
+
+export function circleImpact(from, to, target, radius) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const x = from.x - target.x;
+  const y = from.y - target.y;
+  const gap = x * x + y * y - radius ** 2;
+  if (gap <= 0) return 0;
+  const lengthSquared = dx * dx + dy * dy;
+  const projection = x * dx + y * dy;
+  const discriminant = projection ** 2 - lengthSquared * gap;
+  if (!lengthSquared || projection >= 0 || discriminant < 0) return Infinity;
+  const entry = (-projection - Math.sqrt(discriminant)) / lengthSquared;
+  return entry <= 1 ? entry : Infinity;
+}
