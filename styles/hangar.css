@@ -20,6 +20,10 @@
 .is-ready .pilot-state { color: var(--accent); border-color: var(--accent); }
 .is-ready .pilot-state i, .readiness-lights .confirmed { background: currentColor; }
 .robot-art { position: absolute; z-index: 2; right: 7%; width: 48%; height: 92%; object-fit: contain; filter: drop-shadow(0 14px 8px #060b12a6); pointer-events: none; }
+.mount-target { fill: transparent; pointer-events: all; cursor: help; }
+.mount-target:focus-visible { outline: 2px solid var(--accent); }
+.mount-tip { position: absolute; z-index: 4; width: max-content; max-width: min(260px, calc(100% - 8px)); padding: 7px 10px; background: #09111b; border: 1px solid var(--accent); pointer-events: none; font: .82rem/1.35 var(--body); }
+.mount-tip strong { display: block; color: var(--accent); }
 .blue .robot-art { transform: scaleX(-1); }
 .blue .robot-art > image { filter: hue-rotate(177deg) saturate(.83); }
 .reticle { position: absolute; right: 13%; width: 36%; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--tint); }

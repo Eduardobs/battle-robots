@@ -13,6 +13,7 @@ let bayList = [];
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   bays.querySelector('.attribute.tip-open')?.classList.remove('tip-open');
+  bays.querySelectorAll('.mount-tip').forEach(tip => { tip.hidden = true; });
 });
 
 function options(kind) {
@@ -66,10 +67,11 @@ export function buildBays(onReady) {
       <div class="chassis">
         <div class="pilot-title"><p class="eyebrow">${t('player', { number: id + 1 })}</p><h2 id="pilot-${id}">${name}</h2>
         <span class="pilot-state"><i></i><span></span></span></div>
-        <svg class="robot-art" viewBox="0 0 580 440" aria-hidden="true">
-          <image href="./assets/chassis.webp" width="580" height="440"/>
+        <svg class="robot-art" viewBox="0 0 580 440">
+          <image href="./assets/chassis.webp" aria-hidden="true" width="580" height="440"/>
           <g class="mounted-equipment"></g>
         </svg>
+        <div class="mount-tip" role="tooltip" hidden><strong></strong><span></span></div>
         <span class="reticle" aria-hidden="true"></span>
       </div>
       <div class="bay-controls">
@@ -184,8 +186,9 @@ function refreshAttributes(id) {
 function refreshEquipment(id) {
   const { bay } = bayList[id];
   const loadout = loadouts[id];
-  bay.querySelector('.mounted-equipment').innerHTML = hangarMounts(loadout.utils, 'utils') +
-    hangarMounts(loadout.guns, 'guns');
+  bay.querySelector('.mount-tip').hidden = true;
+  bay.querySelector('.mounted-equipment').innerHTML = hangarMounts(loadout.utils, 'utils', id) +
+    hangarMounts(loadout.guns, 'guns', id);
   for (const select of bay.querySelectorAll('select[data-kind]')) {
     const { kind, slot } = select.dataset;
     const selected = loadout[kind];
@@ -228,7 +231,31 @@ function setAttribute(id, key, requested) {
   refreshAttributes(id);
 }
 
+function bindMountTooltip(bay) {
+  const chassis = bay.querySelector('.chassis');
+  const mounts = chassis.querySelector('.mounted-equipment');
+  const tip = chassis.querySelector('.mount-tip');
+  function show(target) {
+    const item = target.dataset.item;
+    if (!item) return;
+    tip.querySelector('strong').textContent = t(`${item}.name`);
+    tip.querySelector('span').textContent = t(`${item}.description`);
+    tip.hidden = false;
+    const frame = chassis.getBoundingClientRect();
+    const part = target.getBoundingClientRect();
+    const center = part.left - frame.left + part.width / 2;
+    const above = part.top - frame.top - tip.offsetHeight - 8;
+    tip.style.left = `${Math.max(4, Math.min(center - tip.offsetWidth / 2, chassis.clientWidth - tip.offsetWidth - 4))}px`;
+    tip.style.top = `${above >= 4 ? above : Math.min(part.bottom - frame.top + 5, chassis.clientHeight - tip.offsetHeight - 4)}px`;
+  }
+  mounts.addEventListener('pointerover', event => show(event.target));
+  mounts.addEventListener('focusin', event => show(event.target));
+  mounts.addEventListener('pointerout', () => { tip.hidden = true; });
+  mounts.addEventListener('focusout', () => { tip.hidden = true; });
+}
+
 function bindBay({ bay, rows }, id, onReady) {
+  bindMountTooltip(bay);
   const loadout = loadouts[id];
   const refreshConfiguration = () => {
     saveConfigurations();

@@ -388,3 +388,26 @@ test('os efeitos simultâneos preservam as dimensões do placar e da arena', asy
     expect(await bounds()).toEqual(initial);
   }
 });
+
+test('cada peça montada exibe seu nome e detalhes ao passar o mouse ou receber foco', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#language').selectOption('pt-br');
+  for (const bay of await page.locator('.bay').all()) {
+    const tip = bay.locator('.mount-tip');
+    const mounts = bay.locator('.mount-target');
+    await expect(mounts).toHaveCount(GUNS_QUANTITY + UTILS_QUANTITY);
+    for (const mount of await mounts.all()) {
+      const descriptionId = await mount.getAttribute('aria-describedby');
+      await mount.hover();
+      await expect(tip).toBeVisible();
+      await expect(tip.locator('strong')).toHaveText(await mount.getAttribute('aria-label'));
+      await expect(tip.locator('span')).toHaveText(await page.locator(`#${descriptionId}`).textContent());
+      await bay.locator('h2').hover();
+      await expect(tip).toBeHidden();
+      await mount.focus();
+      await expect(tip).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(tip).toBeHidden();
+    }
+  }
+});
