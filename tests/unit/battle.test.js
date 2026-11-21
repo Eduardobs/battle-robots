@@ -237,6 +237,8 @@ test('um ataque letal limita o dano à vida restante e termina em nocaute', () =
   state.robots[1].x = state.robots[0].x + 2 * RADIUS;
   step();
   assert.equal(state.robots[1].hp, 0);
+  assert.equal(state.robots[0].report.weapons.hammer.damage, 10);
+  assert.equal(state.robots[1].report.damageTaken, 10);
   assert.deepEqual(state.result, { winner: 0, reason: 'knockout' });
   assert.deepEqual(events.slice(-2).map(({ robot, action, damage }) => [robot, action, damage]), [
     [0, 'event.hit', 10],
@@ -247,11 +249,16 @@ test('um ataque letal limita o dano à vida restante e termina em nocaute', () =
 test('o escudo reduz o dano e a arma respeita o intervalo entre ataques', () => {
   const { state, step, events } = duel([
     loadout({ weapons: ['hammer'] }),
-    loadout({ tools: ['shield'], speed: 0 }),
+    loadout({ tools: ['shield'], speed: 0, defense: 2 }),
   ], { random: () => 0.2 });
   state.robots[1].x = state.robots[0].x + 2 * RADIUS;
   step();
-  assert.equal(state.robots[1].hp, 100 - guns.hammer.damage * 0.55);
+  const { report, hp } = state.robots[1];
+  const afterDefense = guns.hammer.damage / 2;
+  assert.equal(hp, 100 - afterDefense * 0.55);
+  assert.equal(report.defenseMitigated, guns.hammer.damage - afterDefense);
+  assert.equal(report.shieldMitigated, afterDefense - afterDefense * 0.55);
+  assert.equal(report.tools.shield, 1);
   assert.ok(events.some(event => event.action === 'event.activate' && event.item === 'utils.shield.name'));
   step();
   assert.equal(events.filter(event => event.action === 'event.hit').length, 1);
@@ -269,6 +276,8 @@ test('o drop de vida recupera 15% do HP máximo e respeita esse limite', () => {
   state.drops.push({ x: robot.x, y: robot.y, type: 'health' });
   step();
   assert.equal(robot.hp, 100);
+  assert.equal(robot.report.healing, 20);
+  assert.equal(robot.report.drops.health, 2);
   assert.equal(state.drops.length, 0);
   assert.ok(events.some(event => event.robot === 0 && event.action === 'event.collect' &&
     event.item === 'drop.health'));
@@ -303,6 +312,8 @@ for (const strategy of ['distance', 'flank']) {
     assert.ok(state.projectiles.some(shot => shot.key === 'hook'));
     for (let frame = 0; frame < 20 && !robot.pull; frame++) step();
     assert.ok(events.some(event => event.action === 'event.hookWall'));
+    assert.equal(robot.report.weapons.hook.anchors, 1);
+    assert.equal(robot.report.weapons.hook.misses, 0);
     assert.ok(robot.pull);
     for (let frame = 0; frame < 20; frame++) step();
     assert.ok(Math.hypot(robot.x - enemy.x, robot.y - enemy.y) > 165);
@@ -541,6 +552,8 @@ test('o eco atinge apenas se o alvo permanecer na área até o pulso', () => {
     if (escapes) target.x += 50;
     for (let frame = 0; frame < 40; frame++) step();
     assert.equal(target.hp, escapes ? 100 : 84);
+    const { shots, hits, misses } = attacker.report.weapons.echo;
+    assert.deepEqual({ shots, hits, misses }, { shots: 1, hits: escapes ? 0 : 1, misses: escapes ? 1 : 0 });
   }
 });
 
@@ -567,6 +580,8 @@ test('cada acerto do lança-chamas causa doze pulsos independentes durante três
   assert.equal(target.burns.length, 1);
   step(0.5);
   assert.equal(target.burns.length, 0);
+  assert.equal(attacker.report.weapons.flame.hits, 2);
+  assert.ok(Math.abs(attacker.report.weapons.flame.burnDamage - 24 * 1.15) < 1e-8);
   assert.ok(Math.abs(target.hp - (100 - 2 * guns.flame.damage - 24 * 1.15)) < 1e-8);
 });
 

@@ -8,7 +8,7 @@ import { bouncePoint, projectileLeg, robotImpact } from './trajectories.js';
 const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
 const ECHO_DELAY = 0.5;
 
-export function createWeapons(state, navigation, { entersSpikes, move }, { random, damage, effect, log }) {
+export function createWeapons(state, navigation, { entersSpikes, move }, { random, damage, effect, log, recordShot }) {
   const { robots } = state;
 
   function retreatAnchor(robot, enemy, range) {
@@ -51,7 +51,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
   function hit(robot, enemy, key, angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x)) {
     const weapon = guns[key];
     const critical = key === 'pistol' && random() < 0.18;
-    const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', `guns.${key}.name`);
+    const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', key);
     if (state.result) return;
     if (key === 'flame') {
       enemy.burns.push({ from: robot, until: state.time + 3, next: state.time + 0.25 });
@@ -59,6 +59,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
     if (!weapon.controlDuration || enemy.controlProtectedUntil > state.time + 1e-8) return;
     if (key === 'hook' && returned) return;
 
+    robot.report.controlHits++;
     const until = state.time + weapon.controlDuration;
     if (key === 'hammer' || key === 'pulse') enemy.lockedUntil = until;
     if (key === 'nitrogen') enemy.frozenUntil = until + THAW_DURATION;
@@ -90,7 +91,9 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
     });
   }
 
-  function absorbShot(enemy, hologram) {
+  function absorbShot(robot, key, enemy, hologram) {
+    robot.report.weapons[key].misses++;
+    enemy.report.decoys++;
     hologram.until = 0;
     log(enemy, 'event.decoy');
   }
@@ -105,7 +108,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
       const hologram = enemy.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
       const decoyHit = hologram ? robotImpact(shot, next, hologram.decoy) : Infinity;
       if (decoyHit <= enemyHit && decoyHit !== Infinity) {
-        absorbShot(enemy, hologram);
+        absorbShot(robot, key, enemy, hologram);
         return false;
       }
       if (enemyHit !== Infinity) {
@@ -126,8 +129,10 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
         const { contact, landing } = shot.anchor;
         robot.pull = { target: landing ?? contact, until: state.time + 0.6, stop: landing ? 0.1 : RADIUS };
         effect('tether', robot, contact, 0.5, { attached: robot.id });
+        robot.report.weapons[key].anchors++;
         log(robot, 'event.hookWall');
       } else {
+        robot.report.weapons[key].misses++;
         log(robot, 'event.miss', `guns.${key}.name`);
       }
       return false;
@@ -146,6 +151,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
         const anchor = retreatAnchor(robot, enemy, range);
         if (anchor) {
           item.ready = state.time + weapon.interval;
+          recordShot(robot, key);
           launch(robot, key, anchor.contact, null, anchor);
           continue;
         }
@@ -162,6 +168,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
       const bounce = wall && key === 'disc' && bouncePoint(robot, target, state.walls, range);
       if (wall && key !== 'disc' && key !== 'hook') continue;
       item.ready = state.time + weapon.interval;
+      recordShot(robot, key);
       if (key === 'echo') {
         robot.echo = { point: contact, at: state.time + ECHO_DELAY };
         effect('echo', contact, contact, ECHO_DELAY, { radius: ECHO_RADIUS });
@@ -170,7 +177,7 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
         launch(robot, key, target, bounce, wall && key === 'hook' ? { contact } : null);
       } else {
         effect(key, robot, target, 0.21);
-        if (hologram) absorbShot(enemy, hologram);
+        if (hologram) absorbShot(robot, key, enemy, hologram);
         else hit(robot, enemy, key);
       }
     }

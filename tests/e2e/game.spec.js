@@ -237,6 +237,7 @@ test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ p
   const second = bays.nth(1);
   const hangar = page.locator('#hangar');
   const arena = page.locator('#arena');
+  const summary = page.locator('#result');
 
   await first.getByRole('button', { name: 'Ready', exact: true }).click();
   await expect(first.getByRole('button', { name: 'Edit loadout' })).toHaveAttribute('aria-pressed', 'true');
@@ -252,13 +253,24 @@ test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ p
 
   await page.clock.runFor(2200);
   await expect(arena.locator('#countdown')).toHaveText('00:00');
-  await expect(arena.locator('#result-reason')).toHaveText('Time up');
-  await expect(arena.locator('#result-title')).toBeFocused();
-  await expect(arena.locator('#events')).toContainText('Battle time expired');
+  await expect(summary).toBeVisible();
+  await expect(arena).toBeHidden();
+  await expect(summary.locator('#result-reason')).toHaveText('Time up');
+  await expect(summary.locator('#result-title')).toBeFocused();
+  await expect(summary.locator('#result-duration')).toHaveText('00:02');
+  await expect(summary.getByRole('rowheader', { name: 'Effective healing' })).toBeVisible();
+  await expect(summary.getByRole('table', { name: 'Red weapons' })).toBeVisible();
 
-  await arena.getByRole('button', { name: 'Back to the hangar' }).click();
+  await summary.getByRole('button', { name: 'View arena' }).click();
+  await expect(arena).toBeVisible();
+  await expect(arena.locator('#arena-title')).toBeFocused();
+  await expect(arena.locator('#events')).toContainText('Battle time expired');
+  await arena.getByRole('button', { name: 'View summary' }).click();
+
+  await summary.getByRole('button', { name: 'Back to the hangar' }).click();
   await expect(hangar).toBeVisible();
   await expect(arena).toBeHidden();
+  await expect(summary).toBeHidden();
   await expect(hangar.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(2);
   await expect(first.locator('#hp-0')).toBeEnabled();
 });

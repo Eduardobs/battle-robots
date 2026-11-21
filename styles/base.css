@@ -84,3 +84,11 @@ select:hover, textarea:hover, .attribute-value:hover { border-color: var(--muted
   .page-heading { flex-wrap: wrap; }
   .match-summary { padding: 0; border: 0; }
 }
+@media (max-width: 420px) {
+  .brand { gap: 6px; font-size: 1.1rem; }
+  .brand-icon { width: 24px; height: 24px; }
+  .brand-icon .icon { width: 18px; height: 18px; }
+  .language-select { padding: 5px 24px 5px 27px; font-size: .75rem; }
+  .stages { gap: 4px; }
+  .stages b { width: 10px; }
+}

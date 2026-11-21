@@ -1,13 +1,13 @@
 import { createBattle, STEP } from '../battle.js';
-import { pilots } from '../catalog.js';
-import { locale, t } from '../i18n.js';
+import { t } from '../i18n.js';
+import { renderBattleReport } from './battle-report.js';
 import { clearEvents, flushEvents, queueEvent, translateEvents } from './event-log.js';
 import { createRenderer } from './renderer.js';
 import { buildScoreboard, updateRobotDetails, updateScore } from './scoreboard.js';
 
-export function createArenaController({ onStart, onReset }) {
+export function createArenaController({ setStage, onReset }) {
   const byId = id => document.getElementById(id);
-  const result = byId('result');
+  const viewResult = byId('view-result');
   const battleControls = byId('battle-controls');
   const pauseButton = byId('pause-battle');
   const finishButton = byId('finish-battle');
@@ -24,21 +24,15 @@ export function createArenaController({ onStart, onReset }) {
   function updateBattleControls() {
     const finished = Boolean(battle?.state.result);
     battleControls.hidden = !battle || finished;
+    viewResult.hidden = !finished;
     byId('battle-status').textContent = t(finished ? 'finished' : paused ? 'paused' : 'intent.fight');
     pauseButton.textContent = t(paused ? 'resumeBattle' : 'pauseBattle');
   }
 
-  function showResult(state, focus = true) {
-    const { winner, reason } = state.result;
-    const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
-    byId('result-reason').textContent = t(reason);
-    byId('result-title').textContent = winner === null ? t('draw') : t('winner', { name: t(pilots[winner].nameKey) });
-    byId('result-score').textContent = state.robots
-      .map(robot => t('pilotScore', {
-        name: t(pilots[robot.id].nameKey), healthPercent: percent.format(robot.hp / robot.stats.hp),
-      })).join(' · ');
-    result.hidden = false;
-    if (focus) byId('result-title').focus({ preventScroll: true });
+  function showResult() {
+    updateBattleControls();
+    renderBattleReport(battle.state);
+    setStage('result');
   }
 
   function frame(timestamp) {
@@ -61,8 +55,7 @@ export function createArenaController({ onStart, onReset }) {
       flushEvents();
     }
     if (state.result) {
-      updateBattleControls();
-      showResult(state);
+      showResult();
     } else {
       frameId = requestAnimationFrame(frame);
     }
@@ -75,15 +68,13 @@ export function createArenaController({ onStart, onReset }) {
 
   function start(loadouts) {
     clearEvents();
-    result.hidden = true;
     paused = false;
     elapsed = 0;
     nextScore = SCORE_INTERVAL;
     battle = createBattle(loadouts, { onEvent: queueEvent });
     updateBattleControls();
-    onStart();
+    setStage('arena');
     buildScoreboard();
-    byId('arena-title').focus({ preventScroll: true });
     render(battle.state);
     updateScore(battle.state);
     flushEvents();
@@ -108,8 +99,13 @@ export function createArenaController({ onStart, onReset }) {
     battle.finish();
     updateScore(battle.state);
     flushEvents();
-    updateBattleControls();
-    showResult(battle.state);
+    showResult();
+  });
+
+  viewResult.addEventListener('click', showResult);
+  byId('view-arena').addEventListener('click', () => {
+    setStage('arena');
+    render(battle.state);
   });
 
   byId('reset').addEventListener('click', () => {
@@ -128,7 +124,7 @@ export function createArenaController({ onStart, onReset }) {
     render(state);
     updateScore(state);
     translateEvents();
-    if (state.result) showResult(state, false);
+    if (state.result) renderBattleReport(state);
   }
 
   return { start, translate };

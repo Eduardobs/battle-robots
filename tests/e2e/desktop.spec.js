@@ -71,6 +71,13 @@ test('o hangar, o editor, a arena e o resultado cabem em Full HD nos três idiom
     await expect(page.locator('#result-score')).toContainText(name);
     await expectToFit(page);
   }
+  await page.setViewportSize({ width: 320, height: 800 });
+  for (const [code] of locales) {
+    await language.selectOption(code);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    const scroller = page.locator('#report-weapons .report-scroll').first();
+    expect(await scroller.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  }
 });
 
 test('o histórico mantém a página consultada e acompanha os eventos ao voltar à última', async ({ page }) => {

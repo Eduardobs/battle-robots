@@ -125,14 +125,6 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
 .weapon-cooldown:empty, .tool-cooldown:empty { display: none; }
 .arena-frame { position: relative; align-self: stretch; min-height: 0; padding: 4px; border: 1px solid #405364; background: #1b2835; }
 #field { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--inset); }
-.result-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 10px; background: #070d16cc; }
-.result-card { width: min(450px, 100%); padding: clamp(10px, 3vw, 28px); border: 1px solid var(--border); border-top: 3px solid var(--signal); background: #14202d; text-align: center; }
-.result-card h2 { margin: 5px 0; font: 800 clamp(1.8rem, 6vw, 3.4rem)/1 var(--display); }
-.result-card p:not(.eyebrow) { color: var(--muted); font: 500 .83rem/1.4 var(--mono); }
-.result-symbol { display: inline-grid; place-items: center; width: 50px; height: 50px; border: 1px solid var(--border); color: var(--signal); margin-bottom: 14px; }
-.result-symbol .icon { width: 28px; height: 28px; }
-.result-card .ready-button { margin-top: 20px; width: 100%; }
-.result-card .eyebrow { color: var(--signal); }
 #battle-status { display: flex; align-items: center; justify-self: end; gap: 6px; color: var(--muted); font: .8rem var(--mono); }
 #battle-status::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
 .battle-log {
@@ -207,9 +199,9 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   .arena-heading { grid-template-columns: auto minmax(0, 1fr); }
   #battle-status { font-size: .72rem; }
   #battle-controls { grid-column: 1 / -1; gap: 6px; }
+  #view-result { grid-column: 1 / -1; justify-self: start; }
   #battle-controls .ready-button { padding-inline: 6px; font-size: .9rem; }
   .scoreboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timer { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .score > div:first-child { flex-wrap: wrap; }
-  .result-overlay { overflow: auto; align-items: safe center; }
 }

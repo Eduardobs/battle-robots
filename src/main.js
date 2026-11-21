@@ -6,29 +6,27 @@ import { timecode } from './ui/format.js';
 import { icon } from './ui/icons.js';
 
 const byId = id => document.getElementById(id);
-const hangar = byId('hangar');
-const arena = byId('arena');
+const stages = ['hangar', 'arena', 'result'];
 const languageSelect = byId('language');
 
 document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
 
-function setStage(inBattle) {
-  hangar.hidden = inBattle;
-  arena.hidden = !inBattle;
-  byId('stage-hangar').removeAttribute('aria-current');
-  byId('stage-arena').removeAttribute('aria-current');
-  byId(inBattle ? 'stage-arena' : 'stage-hangar').setAttribute('aria-current', 'step');
+function setStage(stage) {
+  for (const id of stages) {
+    byId(id).hidden = id !== stage;
+    const indicator = byId(`stage-${id}`);
+    if (id === stage) indicator.setAttribute('aria-current', 'step');
+    else indicator.removeAttribute('aria-current');
+  }
   window.scrollTo(0, 0);
+  byId(`${stage}-title`).focus({ preventScroll: true });
 }
 
 const controller = createArenaController({
-  onStart: () => setStage(true),
+  setStage,
   onReset() {
     resetReady();
-    setStage(false);
-    const title = byId('hangar-title');
-    title.setAttribute('tabindex', '-1');
-    title.focus({ preventScroll: true });
+    setStage('hangar');
   },
 });
 

@@ -11,6 +11,16 @@ export { EDGE, generateArena, HEIGHT, RADIUS, WIDTH } from './simulation/arena.j
 export const STEP = 1 / 60;
 
 const SPIKE_DAMAGE_PER_SECOND = 4;
+export const DROP_TYPES = ['health', 'attribute', 'weapon', 'tool', 'teleport'];
+
+function weaponStats() {
+  return { shots: 0, hits: 0, misses: 0, criticals: 0, anchors: 0, damage: 0, burnDamage: 0 };
+}
+
+function recordShot(robot, key) {
+  const entry = robot.report.weapons[key] ??= weaponStats();
+  entry.shots++;
+}
 
 export function createBattle(loadouts, {
   random = Math.random, duration = BATTLE_TIME_IN_SECONDS, onEvent = () => {},
@@ -28,6 +38,13 @@ export function createBattle(loadouts, {
       baseStats, boosts: {}, intent: null, goal: null, thinkAt: 0, maneuverAt: 2 + id,
       waypoint: null, nextPath: 0, burns: [], lockedUntil: 0, frozenUntil: 0, controlProtectedUntil: 0,
       pull: null, muddy: false, moving: false, spikeDamage: 0,
+      report: {
+        weapons: Object.fromEntries(loadout.guns.map(key => [key, weaponStats()])),
+        tools: Object.fromEntries(loadout.utils.map(key => [key, 0])),
+        drops: Object.fromEntries(DROP_TYPES.map(type => [type, 0])),
+        healing: 0, damageTaken: 0, defenseMitigated: 0, shieldMitigated: 0, spikeDamage: 0,
+        decoys: 0, beaconReturns: 0, boosts: 0, controlHits: 0,
+      },
     };
   });
   const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
@@ -53,7 +70,7 @@ export function createBattle(loadouts, {
   function spawnDrop() {
     const spot = pick(freePositions());
     if (!spot) return;
-    const type = pick(['health', 'attribute', 'weapon', 'tool', 'teleport']);
+    const type = pick(DROP_TYPES);
     state.drops.push({ ...spot, type });
     robots.forEach(robot => { robot.thinkAt = 0; });
     log(null, 'event.spawn', `drop.${type}`);
@@ -80,9 +97,12 @@ export function createBattle(loadouts, {
   function collect(robot, drop) {
     state.drops.splice(state.drops.indexOf(drop), 1);
     robots.forEach(unit => { unit.thinkAt = 0; });
+    robot.report.drops[drop.type]++;
     log(robot, 'event.collect', `drop.${drop.type}`);
     if (drop.type === 'health') {
+      const previousHP = robot.hp;
       robot.hp = Math.min(robot.stats.hp, robot.hp + robot.stats.hp * 0.15);
+      robot.report.healing += robot.hp - previousHP;
       return;
     }
     if (drop.type === 'teleport') {
@@ -105,6 +125,8 @@ export function createBattle(loadouts, {
       if (missing.length) {
         const key = pick(missing);
         items.push({ key, ready: 0, until: 0, expires: state.time + 10 });
+        if (weapon) robot.report.weapons[key] ??= weaponStats();
+        else robot.report.tools[key] ??= 0;
         log(robot, 'event.install', `${weapon ? 'guns' : 'utils'}.${key}.name`);
         return;
       }
@@ -114,6 +136,7 @@ export function createBattle(loadouts, {
     if (id === 'hp') robot.hp *= boosted / robot.stats.hp;
     robot.stats[id] = boosted;
     robot.boosts[id] = state.time + 5;
+    robot.report.boosts++;
     log(robot, 'event.boost', `attr.${id}.name`);
   }
 
@@ -151,11 +174,24 @@ export function createBattle(loadouts, {
     robot.spikeDamage = 0;
   }
 
-  function damage(attacker, defender, base, action, item) {
+  function damage(attacker, defender, base, action, key) {
     const power = Math.max(1, attacker.stats.attack) / Math.max(1, defender.stats.defense);
-    const applied = Math.min(defender.hp, base * power * (active(defender, 'shield') ? 0.55 : 1));
+    const afterDefense = base * power;
+    const afterShield = afterDefense * (active(defender, 'shield') ? 0.55 : 1);
+    const applied = Math.min(defender.hp, afterShield);
+    const weapon = attacker.report.weapons[key];
+    weapon.damage += applied;
+    if (action === 'event.burn') {
+      weapon.burnDamage += applied;
+    } else {
+      weapon.hits++;
+      if (action === 'event.critical') weapon.criticals++;
+    }
+    defender.report.damageTaken += applied;
+    defender.report.defenseMitigated += Math.max(0, base * Math.max(1, attacker.stats.attack) - afterDefense);
+    defender.report.shieldMitigated += afterDefense - afterShield;
     defender.hp = Math.max(0, defender.hp - applied);
-    log(attacker, action, item, applied);
+    log(attacker, action, action === 'event.burn' ? null : `guns.${key}.name`, applied);
     effect('hit', defender, defender, 0.40, { amount: applied });
     if (defender.hp <= 0) {
       finish('knockout');
@@ -168,6 +204,7 @@ export function createBattle(loadouts, {
       Object.assign(defender, beacon.anchor, { pull: null, waypoint: null, thinkAt: 0 });
       if (attacker.pull?.target === defender) attacker.pull = null;
       beacon.until = 0;
+      defender.report.beaconReturns++;
       log(defender, 'event.beaconReturn');
       return true;
     }
@@ -207,12 +244,13 @@ export function createBattle(loadouts, {
       }
       item.until = state.time + tool.duration;
       item.ready = state.time + tool.cooldown;
+      robot.report.tools[item.key] = (robot.report.tools[item.key] ?? 0) + 1;
       log(robot, 'event.activate', `utils.${item.key}.name`);
     }
   }
 
   const movement = createMovement(state, navigation, maneuverPositions, { random, active, log });
-  const { advanceProjectile, fire } = createWeapons(state, navigation, movement, { random, damage, effect, log });
+  const { advanceProjectile, fire } = createWeapons(state, navigation, movement, { random, damage, effect, log, recordShot });
   const { walk, pushOpponents } = movement;
   const orders = [[robots[0], robots[1]], [robots[1], robots[0]]];
   let turn = random() < 0.5 ? 0 : 1;
@@ -241,6 +279,7 @@ export function createBattle(loadouts, {
         const amount = Math.min(robot.hp, SPIKE_DAMAGE_PER_SECOND * delta);
         robot.hp -= amount;
         robot.spikeDamage += amount;
+        robot.report.spikeDamage += amount;
         if (robot.spikeDamage >= SPIKE_DAMAGE_PER_SECOND / 2 - 1e-8) reportSpikeDamage(robot);
       } else {
         reportSpikeDamage(robot);
@@ -290,7 +329,7 @@ export function createBattle(loadouts, {
       for (const burn of robot.burns) {
         while (burn.next <= Math.min(state.time, burn.until) + 1e-8) {
           burn.next += 0.25;
-          damage(burn.from, robot, 1.15, 'event.burn');
+          damage(burn.from, robot, 1.15, 'event.burn', 'flame');
           if (state.result) return;
         }
       }
@@ -303,8 +342,10 @@ export function createBattle(loadouts, {
       effect('echoBlast', point, point, 0.25, { radius: ECHO_RADIUS });
       const enemy = robots[1 - robot.id];
       if (distance(enemy, point) <= ECHO_RADIUS && !blocked(point, enemy, arena.walls)) {
-        damage(robot, enemy, guns.echo.damage, 'event.hit', 'guns.echo.name');
+        damage(robot, enemy, guns.echo.damage, 'event.hit', 'echo');
         if (state.result) return;
+      } else {
+        robot.report.weapons.echo.misses++;
       }
     }
     state.projectiles = state.projectiles.filter(shot =>
