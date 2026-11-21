@@ -521,20 +521,20 @@ test('o disco pode rebater na parede que protege o alvo sem uma rota de ricochet
   assert.equal(target.hp, 100);
 });
 
-test('a serra e o martelo causam dano imediato apenas no contato', () => {
+test('a serra e o martelo causam dano imediato a curta distância', () => {
   for (const [weapon, strategy] of [['saw', 'distance'], ['hammer', 'advance']]) {
     const { state, step } = duel([
       loadout({ weapons: [weapon], strategy, speed: 0 }), loadout({ speed: 0 }),
     ], { random: () => 0.95 });
     const [attacker, target] = state.robots;
     Object.assign(attacker, { x: 450, y: 50 });
-    Object.assign(target, { x: 450 + 2 * RADIUS + 5, y: 50, goal: target, thinkAt: Infinity });
+    Object.assign(target, { x: 450 + guns[weapon].range + 1, y: 50, goal: target, thinkAt: Infinity });
     step();
     assert.equal(target.hp, 100);
     assert.equal(attacker.guns[0].ready, 0);
-    attacker.stats.speed = 240;
+    target.x -= 1;
     step();
-    assert.equal(target.x - attacker.x, 2 * RADIUS);
+    assert.ok(target.x - attacker.x > 2 * RADIUS);
     assert.equal(target.hp, 100 - guns[weapon].damage);
     assert.equal(state.projectiles.length, 0);
   }

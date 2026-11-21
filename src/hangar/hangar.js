@@ -1,6 +1,7 @@
 import { ATTRIBUTES_BASE, ATTRIBUTES_POINTS } from '../../config.js';
 import { attributes, equipmentCatalogs, pilots } from '../catalog.js';
 import { numberFormat, t } from '../i18n.js';
+import { hangarMounts } from '../ui/equipment-art.js';
 import { icon } from '../ui/icons.js';
 import { bindConfiguration } from './json-panel.js';
 import { loadouts, remaining, saveConfigurations } from './loadouts.js';
@@ -65,7 +66,10 @@ export function buildBays(onReady) {
       <div class="chassis">
         <div class="pilot-title"><p class="eyebrow">${t('player', { number: id + 1 })}</p><h2 id="pilot-${id}">${name}</h2>
         <span class="pilot-state"><i></i><span></span></span></div>
-        <img class="robot-art" src="./assets/chassis.webp" alt="">
+        <svg class="robot-art" viewBox="0 0 580 440" aria-hidden="true">
+          <image href="./assets/chassis.webp" width="580" height="440"/>
+          <g class="mounted-equipment"></g>
+        </svg>
         <span class="reticle" aria-hidden="true"></span>
       </div>
       <div class="bay-controls">
@@ -180,6 +184,8 @@ function refreshAttributes(id) {
 function refreshEquipment(id) {
   const { bay } = bayList[id];
   const loadout = loadouts[id];
+  bay.querySelector('.mounted-equipment').innerHTML = hangarMounts(loadout.utils, 'utils') +
+    hangarMounts(loadout.guns, 'guns');
   for (const select of bay.querySelectorAll('select[data-kind]')) {
     const { kind, slot } = select.dataset;
     const selected = loadout[kind];

@@ -1,4 +1,5 @@
 import { WIDTH, HEIGHT, EDGE, RADIUS } from '../simulation/arena.js';
+import { drawBattleMounts } from '../ui/equipment-art.js';
 import { pilots } from '../catalog.js';
 import { damageFormat, t } from '../i18n.js';
 
@@ -160,9 +161,8 @@ export function createRenderer(canvas) {
     rect(ctx, pilot.ink, -12, -8, 21, 1);
     rect(ctx, '#191c1e', -8, -4, 9, 8);
     for (const y of [-3, 0, 3]) rect(ctx, '#50585b', -7, y, 6, 1);
-    rect(ctx, pilot.color, 6, -4, 14, 8);
-    rect(ctx, '#14191c', 9, -2, 8, 4);
-    rect(ctx, '#eff9eb', 17, -3, 3, 6);
+    drawBattleMounts(ctx, robot.utils, false);
+    drawBattleMounts(ctx, robot.guns, true);
     if (robot.burns.length) {
       for (let index = 0; index < 5; index++) {
         const angle = time * 5 + index * 2.1;

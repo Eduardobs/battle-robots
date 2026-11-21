@@ -20,7 +20,8 @@
 .is-ready .pilot-state { color: var(--accent); border-color: var(--accent); }
 .is-ready .pilot-state i, .readiness-lights .confirmed { background: currentColor; }
 .robot-art { position: absolute; z-index: 2; right: 7%; width: 48%; height: 92%; object-fit: contain; filter: drop-shadow(0 14px 8px #060b12a6); pointer-events: none; }
-.blue .robot-art { transform: scaleX(-1); filter: hue-rotate(177deg) saturate(.83) drop-shadow(0 14px 8px #060b12a6); }
+.blue .robot-art { transform: scaleX(-1); }
+.blue .robot-art > image { filter: hue-rotate(177deg) saturate(.83); }
 .reticle { position: absolute; right: 13%; width: 36%; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--tint); }
 .reticle::before, .reticle::after { content: ""; position: absolute; border-radius: 50%; }
 .reticle::before { inset: 8%; border: 1px dashed var(--accent); opacity: .25; }
