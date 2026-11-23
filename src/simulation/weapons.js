@@ -3,6 +3,7 @@ import { guns } from '../catalog.js';
 import { RADIUS } from './arena.js';
 import { CONTROL_RECOVERY, ECHO_RADIUS, firingRange, keepsRange, preferredRange, THAW_DURATION, weaponRange } from './combat-rules.js';
 import { blocked, clamp, distance, firstContact, pointAlong } from './geometry.js';
+import { isAlive } from './modes.js';
 import { bouncePoint, projectileLeg, robotImpact } from './trajectories.js';
 
 const PROJECTILE_SPEED_BONUS_PER_POINT = 0.001;
@@ -51,8 +52,9 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
   function hit(robot, enemy, key, angle = Math.atan2(enemy.y - robot.y, enemy.x - robot.x)) {
     const weapon = guns[key];
     const critical = key === 'pistol' && random() < 0.18;
-    const returned = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', key);
-    if (state.result) return;
+    const outcome = damage(robot, enemy, weapon.damage * (critical ? 1.85 : 1), critical ? 'event.critical' : 'event.hit', key);
+    if (state.result || outcome === 'defeated') return;
+    const returned = outcome === 'beacon';
     if (key === 'flame') {
       enemy.burns.push({ from: robot, until: state.time + 3, next: state.time + 0.25 });
     }
@@ -104,8 +106,9 @@ export function createWeapons(state, navigation, { entersSpikes, move }, { rando
     while (travel > 0) {
       const span = distance(shot, shot.to);
       const next = travel >= span ? shot.to : pointAlong(shot, shot.to, travel / span);
-      const enemyHit = robotImpact(shot, next, enemy);
-      const hologram = enemy.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
+      const enemyAlive = isAlive(enemy);
+      const enemyHit = enemyAlive ? robotImpact(shot, next, enemy) : Infinity;
+      const hologram = enemyAlive && enemy.utils.find(tool => tool.key === 'hologram' && tool.until > state.time);
       const decoyHit = hologram ? robotImpact(shot, next, hologram.decoy) : Infinity;
       if (decoyHit <= enemyHit && decoyHit !== Infinity) {
         absorbShot(robot, key, enemy, hologram);

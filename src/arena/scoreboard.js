@@ -9,12 +9,25 @@ let scores = [];
 let countdown;
 let displayedSeconds;
 
+export function modeScoreText({ mode, modeState }, robot) {
+  if (mode === 'medals') return t('medalScore', { count: robot.report.drops.medal });
+  if (mode === 'king') return t('kingScore', { score: modeState.scores[robot.id], target: modeState.target });
+  if (mode === 'ctf') return t('ctfScore', { score: modeState.captures[robot.id], target: modeState.target });
+  if (mode === 'charge') return t('chargeScore', { score: modeState.points[robot.id], target: modeState.target });
+  if (mode === 'race') {
+    const { laps, nextPortal } = modeState.progress[robot.id];
+    return t('raceScore', { laps, target: modeState.target, portals: nextPortal });
+  }
+  return '';
+}
+
 function scorePanel(pilot, id, mode) {
   const stats = attributes.map(attr => `<div><dt>${icon(attr.icon)} ${t(`attr.${attr.id}.name`)}</dt><dd></dd></div>`).join('');
   const detailsOpen = document.getElementById(`robot-details-${id}`)?.open;
+  const scoreClass = mode === 'medals' ? 'medal-score mode-score' : 'mode-score';
   return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-armament" role="group" aria-label="${t('weapon')}"></span><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div>
-    ${mode === 'medals' ? '<strong class="medal-score"></strong>' : ''}
+    ${mode !== 'battle' ? `<strong class="${scoreClass}"></strong>` : ''}
     <div class="score-tools"></div>
     <ul class="battle-statuses"><li></li><li></li><li></li></ul>
     <details class="robot-details" id="robot-details-${id}"${detailsOpen ? ' open' : ''}>
@@ -34,7 +47,7 @@ export function buildScoreboard(mode = 'battle') {
   displayedSeconds = undefined;
   scores = [...document.querySelectorAll('.score')].map(score => ({
     statuses: score.querySelector('.battle-statuses').children,
-    medals: score.querySelector('.medal-score'),
+    modeScore: score.querySelector('.mode-score'),
     stats: [...score.querySelectorAll('.battle-stats dd')].map((field, index) => ({ field, id: attributes[index].id })),
     guns: { list: score.querySelector('[data-kind="guns"]'), strip: score.querySelector('.score-armament') },
     utils: { list: score.querySelector('[data-kind="utils"]') },
@@ -72,7 +85,8 @@ function updateStatus(field, label, until, time) {
   field.classList.toggle('inactive', !remaining);
 }
 
-export function updateRobotDetails({ robots, time, result }) {
+export function updateRobotDetails(state) {
+  const { robots, time, result, mode, modeState } = state;
   for (const robot of robots) {
     const score = scores[robot.id];
     const burnUntil = Math.max(0, ...robot.burns.map(burn => burn.until));
@@ -101,11 +115,24 @@ export function updateRobotDetails({ robots, time, result }) {
       });
     }
 
-    const intent = robot.intent === 'drop' && robot.goal?.type === 'medal' ? 'medal' : robot.intent;
-    const tools = intent ? [t(`intent.${intent}`)] : [];
-    for (const item of robot.utils) {
-      const remaining = formatRemaining(item.until, time);
-      if (remaining) tools.push(`${t(`utils.${item.key}.name`)} ${remaining} s`);
+    const tools = [];
+    if (robot.respawnAt > time) {
+      tools.push(t('respawnIn', { time: formatRemaining(robot.respawnAt, time) || `0${decimalSeparator}00` }));
+    } else {
+      const intent = robot.intent === 'drop' && robot.goal?.type === 'medal' ? 'medal' : robot.intent;
+      if (intent) tools.push(t(`intent.${intent}`));
+      if (mode === 'ctf' && modeState.flags[1 - robot.id].carrier === robot.id) {
+        tools.push(t('carryingFlag'));
+      } else if (mode === 'charge' && modeState.core.carrier === robot.id) {
+        const left = formatRemaining(time + modeState.core.timer, time) || `0${decimalSeparator}00`;
+        tools.push(t('carryingCore', { time: left }));
+      } else if (mode === 'king' && modeState.zone.contested) {
+        tools.push(t('zoneContested'));
+      }
+      for (const item of robot.utils) {
+        const remaining = formatRemaining(item.until, time);
+        if (remaining) tools.push(`${t(`utils.${item.key}.name`)} ${remaining} s`);
+      }
     }
     const toolText = tools.join(' · ');
     if (score.tools.textContent !== toolText) score.tools.textContent = toolText;
@@ -121,9 +148,12 @@ export function updateScore(state) {
   }
   state.robots.forEach((robot, id) => {
     const score = scores[id];
-    if (score.medals && score.medalCount !== robot.report.drops.medal) {
-      score.medalCount = robot.report.drops.medal;
-      score.medals.textContent = t('medalScore', { count: score.medalCount });
+    if (score.modeScore) {
+      const text = modeScoreText(state, robot);
+      if (score.modeScoreText !== text) {
+        score.modeScoreText = text;
+        score.modeScore.textContent = text;
+      }
     }
     if (score.currentHP !== robot.hp || score.maxHP !== robot.stats.hp) {
       if (robot.hp < score.currentHP) highlight(score.hp);

@@ -1,6 +1,7 @@
 import { clampToSafeInterior, EDGE, HEIGHT, inMud, RADIUS, rollerContact, touchesSpikes, WIDTH, withinSpikeBorder } from './arena.js';
 import { CONTACT_RANGE, ECHO_RADIUS, firingRange, keepsRange, preferredRange, THAW_DURATION, weaponRange } from './combat-rules.js';
 import { blocked, clamp, closestFraction, distance, expand, impact, inside, pathClearance, pointAlong } from './geometry.js';
+import { isAlive } from './modes.js';
 import { nextWaypoint } from './navigation.js';
 import { DODGE_CLEARANCE, entersProjectilePath, projectileLeg } from './trajectories.js';
 
@@ -105,12 +106,82 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     return nearest;
   }
 
+  function zoneStandPoint(zone, enemy) {
+    if (!isAlive(enemy)) return { x: zone.x, y: zone.y };
+    const span = distance(zone, enemy) || 1;
+    const offset = Math.max(0, zone.radius - 18);
+    const point = clampToSafeInterior({
+      x: zone.x + (zone.x - enemy.x) / span * offset,
+      y: zone.y + (zone.y - enemy.y) / span * offset,
+    });
+    return !withinSpikeBorder(point) && !blocked(point, point, navigation.barriers) ? point : { x: zone.x, y: zone.y };
+  }
+
+  function modeGoal(robot, enemy) {
+    const ms = state.modeState;
+    if (!ms) return null;
+    const enemyAlive = isAlive(enemy);
+    if (state.mode === 'king') {
+      const { zone } = ms;
+      const inZone = distance(robot, zone) <= zone.radius - 8;
+      const enemyInZone = enemyAlive && distance(enemy, zone) <= zone.radius;
+      if (!inZone) return { intent: 'zone', goal: { x: zone.x, y: zone.y } };
+      if (!enemyInZone) {
+        const goal = keepsRange(robot) ? zoneStandPoint(zone, enemy) : { x: zone.x, y: zone.y };
+        return { intent: 'holdZone', goal };
+      }
+      if (keepsRange(robot) && robot.guns.length) {
+        return { intent: 'contestZone', goal: zoneStandPoint(zone, enemy) };
+      }
+      return { intent: 'contestZone', goal: enemy };
+    }
+    if (state.mode === 'ctf') {
+      const ownBase = ms.bases[robot.id];
+      const enemyBase = ms.bases[1 - robot.id];
+      const ownFlag = ms.flags[robot.id];
+      const enemyFlag = ms.flags[1 - robot.id];
+      if (enemyFlag.carrier === robot.id) {
+        if (ownFlag.atHome || !enemyAlive) return { intent: 'returnFlag', goal: ownBase };
+        return { intent: 'interceptCarrier', goal: enemy };
+      }
+      if (!ownFlag.atHome && enemyAlive) {
+        if (distance(enemy, enemyBase) < distance(robot, enemyBase) + 120 || distance(robot, enemy) < 280) {
+          return { intent: 'interceptCarrier', goal: enemy };
+        }
+      }
+      return { intent: 'seekFlag', goal: enemyBase };
+    }
+    if (state.mode === 'charge') {
+      const { core } = ms;
+      if (core.carrier === null) return { intent: 'seekCore', goal: { x: core.x, y: core.y } };
+      if (core.carrier === robot.id) return { intent: 'passCore', goal: enemy };
+      let best = maneuverPositions[0] ?? robot;
+      let bestScore = -Infinity;
+      for (const point of maneuverPositions) {
+        const score = distance(point, enemy) * 1.3 - distance(robot, point) * 0.25 +
+          Math.min(130, point.x, WIDTH - point.x, point.y, HEIGHT - point.y) * 0.7 -
+          (inMud(point, state.mud) ? 65 : 0);
+        if (score > bestScore) {
+          best = point;
+          bestScore = score;
+        }
+      }
+      return { intent: 'evadeCore', goal: best };
+    }
+    if (state.mode === 'race') {
+      const portal = ms.portals[ms.progress[robot.id].nextPortal];
+      return { intent: 'racePortal', goal: { x: portal.x, y: portal.y } };
+    }
+    return null;
+  }
+
   function chooseGoal(robot, enemy, range) {
+    const enemyAlive = isAlive(enemy);
     const span = distance(robot, enemy);
     const nearCorner = Math.min(robot.x, WIDTH - robot.x) < 145 &&
       Math.min(robot.y, HEIGHT - robot.y) < 120;
     const threat = Math.max(100, ...enemy.guns.map(item => weaponRange(item.key)));
-    const danger = span < threat && (robot.hp < robot.stats.hp * 0.4 ||
+    const danger = enemyAlive && span < threat && (robot.hp < robot.stats.hp * 0.4 ||
       (robot.strategy === 'distance' && span < range * 0.6));
     let intent;
     let goal;
@@ -119,12 +190,13 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     const heal = finalStretch && robot.hp < enemy.hp && robot.hp < robot.stats.hp &&
       state.drops.filter(drop => drop.type === 'health');
     const drops = finalStretch ? (heal || []) : state.drops;
-    const cooling = robot.strategy === 'skirmish' && robot.guns[0]?.ready > state.time + 0.15;
+    const cooling = enemyAlive && robot.strategy === 'skirmish' && robot.guns[0]?.ready > state.time + 0.15;
+    const objective = modeGoal(robot, enemy);
     const medal = state.mode === 'medals' && nearestMedal(robot);
-    const intercept = !medal && robot.strategy === 'intercept' && robot.guns.length &&
+    const intercept = !objective && !medal && enemyAlive && robot.strategy === 'intercept' && robot.guns.length &&
       interceptPoint(robot, enemy, range);
-    const push = !medal && rollerGoal(robot, enemy);
-    const echo = enemy.echo;
+    const push = !objective && !medal && enemyAlive && rollerGoal(robot, enemy);
+    const echo = enemyAlive && enemy.echo;
     if (echo && distance(robot, echo.point) <= ECHO_RADIUS + 8) {
       intent = 'retreat';
       let shortest = Infinity;
@@ -141,6 +213,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
           shortest = gap;
         }
       }
+    } else if (objective) {
+      intent = objective.intent;
+      goal = objective.goal;
     } else if (medal) {
       intent = 'drop';
       goal = medal;
@@ -166,12 +241,12 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
           bestCost = value;
         }
       }
-    } else if (keepsRange(robot) && robot.guns.length) {
+    } else if (enemyAlive && keepsRange(robot) && robot.guns.length) {
       intent = 'fight';
       goal = enemy;
-    } else if (ahead || cooling || (!finalStretch && (nearCorner || danger || state.time >= robot.maneuverAt)) || !robot.guns.length) {
+    } else if (!enemyAlive || ahead || cooling || (!finalStretch && (nearCorner || danger || state.time >= robot.maneuverAt)) || !robot.guns.length) {
       intent = ahead || cooling || nearCorner || danger ? 'retreat' : 'reposition';
-      const seekCover = ahead || cooling || danger;
+      const seekCover = enemyAlive && (ahead || cooling || danger);
       const desired = intent === 'retreat' ? threat + 130 : range * 0.85;
       const score = point => {
         const gap = distance(point, enemy);
@@ -200,7 +275,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     robot.intent = intent;
     robot.goal = goal;
     robot.nextPath = 0;
-    robot.thinkAt = state.time + (cooling || finalStretch ? 0.2 : intent === 'retreat' || intent === 'reposition' ? 1.45 : 0.45);
+    const fastThink = cooling || finalStretch ||
+      ['evadeCore', 'contestZone', 'interceptCarrier', 'passCore', 'holdZone', 'zone'].includes(intent);
+    robot.thinkAt = state.time + (fastThink ? 0.25 : intent === 'retreat' || intent === 'reposition' ? 1.45 : 0.45);
   }
 
   function move(robot, target, amount, opponent, paths, movement) {
@@ -210,6 +287,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     to.x = clamp(to.x, EDGE + RADIUS, WIDTH - EDGE - RADIUS);
     to.y = clamp(to.y, EDGE + RADIUS, HEIGHT - EDGE - RADIUS);
     const prior = { x: robot.x, y: robot.y };
+    const opponentAlive = isAlive(opponent);
     for (const axis of ['x', 'y']) {
       const next = { x: robot.x, y: robot.y, [axis]: to[axis] };
       const closest = {
@@ -217,7 +295,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
         [axis]: clamp(opponent[axis], Math.min(robot[axis], next[axis]), Math.max(robot[axis], next[axis])),
       };
       const gap = distance(closest, opponent);
-      const contactWithOpponent = gap < CONTACT_RANGE && gap < distance(robot, opponent);
+      const contactWithOpponent = opponentAlive && gap < CONTACT_RANGE && gap < distance(robot, opponent);
       if (contactWithOpponent) {
         const crossGap = axis === 'x' ? robot.y - opponent.y : robot.x - opponent.x;
         const clearance = Math.sqrt(CONTACT_RANGE ** 2 - crossGap ** 2);
@@ -237,14 +315,19 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       }
       if (contactWithOpponent && movement) {
         movement.pressure = { x: (target.x - prior.x) / span, y: (target.y - prior.y) / span };
+        movement.touchedOpponent = true;
       }
       robot[axis] = next[axis];
+    }
+    if (opponentAlive && movement && distance(robot, opponent) <= CONTACT_RANGE + 1) {
+      movement.touchedOpponent = true;
     }
     return distance(prior, robot) > 0.01;
   }
 
   function pushOpponents(movements, dt) {
     const [a, b] = robots;
+    if (!isAlive(a) || !isAlive(b)) return false;
     const [first, second] = movements.map(({ pressure }) => pressure);
     const difference = a.stats.power - b.stats.power;
     if (!difference || Math.abs(distance(a, b) - CONTACT_RANGE) > 1e-8) return false;
@@ -370,8 +453,8 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
         x: robot.x + Math.cos(angle) * reach, y: robot.y + Math.sin(angle) * reach,
       });
       if (entersSpikes(robot, point) || blocked(robot, point, navigation.solids) ||
-          distance(enemy, pointAlong(robot, point, closestFraction(robot, point, enemy))) <
-            Math.min(CONTACT_RANGE, distance(robot, enemy)) - 1e-8) continue;
+          (isAlive(enemy) && distance(enemy, pointAlong(robot, point, closestFraction(robot, point, enemy))) <
+            Math.min(CONTACT_RANGE, distance(robot, enemy)) - 1e-8)) continue;
       const span = distance(robot, point);
       if (span <= 0.01) continue;
       const score = Math.min(DODGE_CLEARANCE, ...threats.map(({ from, end, time }) => {
@@ -399,8 +482,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       robot.pull = null;
     }
 
+    const enemyAlive = isAlive(enemy);
     const span = distance(robot, enemy);
-    const clear = !blocked(robot, enemy, state.walls);
+    const clear = enemyAlive && !blocked(robot, enemy, state.walls);
     const firingDistance = firingRange(robot);
     const preferred = Math.max(CONTACT_RANGE, firingDistance * (robot.strategy === 'advance' ? 0.63 : 0.83));
     const speed = movementSpeed(robot);
@@ -414,7 +498,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       target = dodge || escape;
       moving = move(robot, target, speed * dt, enemy, paths, movement);
       robot.nextPath = 0;
-    } else if (robot.intent === 'push' && robot.goal === enemy && clear) {
+    } else if ((robot.intent === 'push' || robot.intent === 'passCore') && robot.goal === enemy && clear) {
       target = enemy;
       moving = move(robot, enemy, speed * dt, enemy, paths, movement);
     } else if (keepsRange(robot) && robot.goal === enemy && clear && firingDistance > CONTACT_RANGE &&
@@ -431,7 +515,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
         Math.abs(span - CONTACT_RANGE) <= 1e-8) {
       target = enemy;
       moving = move(robot, target, speed * dt, enemy, paths, movement);
-    } else if (robot.goal !== enemy || span > preferred || !clear) {
+    } else if (robot.goal !== enemy || span > preferred || !clear || robot.intent === 'passCore') {
       if (state.time >= robot.nextPath || !robot.waypoint || distance(robot, robot.waypoint) < 7) {
         robot.waypoint = nextWaypoint(robot, safeTarget(robot.goal, robot), navigation);
         robot.nextPath = state.time + 0.20;
@@ -439,7 +523,7 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       target = robot.waypoint;
       moving = move(robot, target, speed * dt, enemy, paths, movement);
     }
-    turnToward(robot, clear || distance(robot, target) < 1 ? enemy : target, dt);
+    turnToward(robot, enemyAlive && (clear || distance(robot, target) < 1) ? enemy : target, dt);
     return moving;
   }
 

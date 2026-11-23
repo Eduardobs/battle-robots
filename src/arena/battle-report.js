@@ -2,6 +2,7 @@ import { guns, pilots } from '../catalog.js';
 import { locale, numberFormat, t } from '../i18n.js';
 import { formatHP, hpAmount, timecode } from '../ui/format.js';
 import { icon } from '../ui/icons.js';
+import { modeScoreText } from './scoreboard.js';
 
 const byId = id => document.getElementById(id);
 const sum = values => values.reduce((total, value) => total + value, 0);
@@ -18,7 +19,8 @@ function comparisonPanel(title, symbol, rows, reports) {
   </table>`;
 }
 
-export function renderBattleReport({ result, robots, time, mode }) {
+export function renderBattleReport(state) {
+  const { result, robots, time, mode } = state;
   const { winner, reason } = result;
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
   const accuracy = ({ hits, misses }) => hits + misses ? percent.format(hits / (hits + misses)) : '—';
@@ -38,15 +40,20 @@ export function renderBattleReport({ result, robots, time, mode }) {
   });
   const outcome = byId('result-outcome');
   outcome.className = `report-outcome ${winner === null ? '' : pilots[winner].className}`;
-  byId('result-reason').textContent = mode === 'medals' ? `${t('mode.medals')} · ${t(reason)}` : t(reason);
+  byId('result-reason').textContent = mode === 'battle' ? t(reason) : `${t(`mode.${mode}`)} · ${t(reason)}`;
   byId('result-winner').textContent = winner === null ? t('draw') : t('winner', { name: t(pilots[winner].nameKey) });
   byId('result-duration').textContent = timecode(time);
-  byId('result-score').innerHTML = robots.map(({ id, hp, stats, report }) => {
+  const scoreClass = mode === 'medals' ? 'medal-score mode-score' : 'mode-score';
+  byId('result-score').innerHTML = robots.map(robot => {
+    const { id, hp, stats } = robot;
     const ratio = hp / stats.hp;
     const pilot = pilots[id];
+    const modeScore = mode !== 'battle'
+      ? `<strong class="${scoreClass}">${modeScoreText(state, robot)}</strong>`
+      : '';
     return `<div class="report-health ${pilot.className}">
       <div><strong>${t(pilot.nameKey)}</strong><span>${percent.format(ratio)}</span></div>
-      ${mode === 'medals' ? `<strong class="medal-score">${t('medalScore', { count: report.drops.medal })}</strong>` : ''}
+      ${modeScore}
       <div class="hp-track" aria-hidden="true"><i style="width:${100 * ratio}%"></i></div>
       <span>${t('hpScore', { current: formatHP(hp), max: formatHP(stats.hp), unit: t('hpUnit') })}</span>
     </div>`;

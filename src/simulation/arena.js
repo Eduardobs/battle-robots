@@ -52,14 +52,16 @@ export function touchesSpikes({ x, y }, spikePatches) {
   }
 }
 
-export function generateArena(random) {
+export function generateArena(random, { clearCenter = false } = {}) {
   const between = (min, max) => min + random() * (max - min);
-  const cells = [[318, 142], [520, 270], [722, 400], [704, 135], [333, 395]];
+  const cells = clearCenter
+    ? [[318, 142], [722, 400], [704, 135], [333, 395]]
+    : [[318, 142], [520, 270], [722, 400], [704, 135], [333, 395]];
   for (let index = cells.length - 1; index > 0; index--) {
     const other = Math.floor(random() * (index + 1));
     [cells[index], cells[other]] = [cells[other], cells[index]];
   }
-  const wallCount = random() < 0.5 ? 3 : 4;
+  const wallCount = clearCenter ? 3 : random() < 0.5 ? 3 : 4;
   const walls = cells.slice(0, wallCount).map(([cx, cy]) => {
     const horizontal = random() < 0.5;
     const w = horizontal ? between(83, 125) : between(32, 46);

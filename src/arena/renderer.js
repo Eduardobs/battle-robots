@@ -1,4 +1,5 @@
 import { WIDTH, HEIGHT, EDGE, RADIUS } from '../simulation/arena.js';
+import { isAlive, spawnPosition } from '../simulation/modes.js';
 import { drawBattleMounts } from '../ui/equipment-art.js';
 import { pilots } from '../catalog.js';
 import { damageFormat, t } from '../i18n.js';
@@ -233,12 +234,223 @@ export function createRenderer(canvas) {
     } else if (kind === 'beaconReturn') {
       line(ctx, '#82eeff', 3, from, to);
       circle(ctx, '#82eeff', to.x, to.y, 10 + progress * 20, 2);
+    } else if (kind === 'capture' || kind === 'portalPass') {
+      const color = pilots[event.team]?.ink ?? '#ffe47a';
+      const baseRadius = event.radius ?? 24;
+      circle(ctx, color, to.x, to.y, baseRadius + progress * 28, 3);
+      circle(ctx, pilots[event.team]?.color ?? '#ffd24c', to.x, to.y, baseRadius * 0.6 + progress * 16, 2);
+    } else if (kind === 'coreTransfer') {
+      line(ctx, '#ffd24c', 4, from, to);
+      circle(ctx, '#fff0a9', to.x, to.y, 16 + progress * 20, 2.5);
+    } else if (kind === 'coreBlast') {
+      circle(ctx, '#ff5a3655', from.x, from.y, 18 + progress * 70);
+      circle(ctx, '#ffd24c', from.x, from.y, 20 + progress * 75, 4);
+      circle(ctx, '#ffffff', from.x, from.y, 10 + progress * 40, 2);
     } else {
       const contact = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
       circle(ctx, kind === 'saw' ? '#e8e5cf' : '#ffaf65', contact.x, contact.y, 5 + progress * 11, 3);
       line(ctx, '#eee1a8', kind === 'hammer' ? 7 : 3, from, contact);
     }
     ctx.restore();
+  }
+
+  function drawFlag(x, y, teamId, time, scale = 1) {
+    const pilot = pilots[teamId];
+    const wave = reducedMotion.matches ? 0 : Math.sin(time * 7 + teamId * 2) * 2.5 * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    line(ctx, '#e6e8e2', 2.5 * scale, { x: 0, y: 11 * scale }, { x: 0, y: -15 * scale });
+    circle(ctx, '#ffe27a', 0, -15 * scale, 2.5 * scale);
+    ctx.fillStyle = pilot.color;
+    ctx.strokeStyle = pilot.ink;
+    ctx.lineWidth = 1.5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(1 * scale, -14 * scale);
+    ctx.lineTo(18 * scale, -9 * scale + wave);
+    ctx.lineTo(1 * scale, -2 * scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawModeFloor(state) {
+    const ms = state.modeState;
+    if (!ms) return;
+    if (state.mode === 'king') {
+      const { zone, interval } = ms;
+      const color = zone.contested ? '#ffb84d' : zone.owner !== null ? pilots[zone.owner].color : '#e8c547';
+      const ink = zone.contested ? '#ffe8b6' : zone.owner !== null ? pilots[zone.owner].ink : '#f7e58d';
+      const pulse = reducedMotion.matches ? 0 : Math.sin(state.time * 5) * 3;
+      circle(ctx, color + '28', zone.x, zone.y, zone.radius);
+      circle(ctx, color, zone.x, zone.y, zone.radius, 3);
+      circle(ctx, ink + '66', zone.x, zone.y, Math.max(8, zone.radius - 10 + pulse), 1.5);
+      const remaining = Math.max(0, zone.nextMove - state.time);
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 3;
+      ctx.arc(zone.x, zone.y, zone.radius + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (remaining / interval));
+      ctx.stroke();
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = ink;
+      ctx.fillText(`${Math.ceil(remaining)}s`, zone.x, zone.y + zone.radius - 10);
+      if (zone.contested) {
+        ctx.fillStyle = '#fff2c2';
+        ctx.fillText('!', zone.x, zone.y + 4);
+      } else {
+        circle(ctx, ink + 'aa', zone.x, zone.y, 4);
+      }
+      ctx.restore();
+      return;
+    }
+    if (state.mode === 'ctf') {
+      for (const base of ms.bases) {
+        const pilot = pilots[base.id];
+        const flag = ms.flags[base.id];
+        circle(ctx, pilot.color + '26', base.x, base.y, base.radius);
+        circle(ctx, pilot.color, base.x, base.y, base.radius, 2.5);
+        if (flag.atHome) {
+          drawFlag(base.x, base.y, base.id, state.time, 1.05);
+        } else {
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          circle(ctx, pilot.ink + '88', base.x, base.y, 12, 1.5);
+          ctx.restore();
+        }
+      }
+      return;
+    }
+    if (state.mode === 'charge') {
+      const { core } = ms;
+      if (core.carrier === null) {
+        const pulse = reducedMotion.matches ? 0 : Math.sin(state.time * 7) * 3;
+        circle(ctx, '#ff9f2e33', core.x, core.y, core.radius + 10 + pulse);
+        circle(ctx, '#ffd24c', core.x, core.y, core.radius + 4 + pulse * 0.5, 2);
+        circle(ctx, '#1b1f22', core.x, core.y, core.radius);
+        circle(ctx, '#ff7b29', core.x, core.y, core.radius - 3);
+        circle(ctx, '#fff3b0', core.x, core.y, 6);
+      }
+      return;
+    }
+    if (state.mode === 'race') {
+      const { portals, progress } = ms;
+      ctx.save();
+      ctx.strokeStyle = '#6f7e7866';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      for (let i = 0; i < portals.length; i++) {
+        const a = portals[i];
+        const b = portals[(i + 1) % portals.length];
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (let i = 0; i < portals.length; i++) {
+        const a = portals[i];
+        const b = portals[(i + 1) % portals.length];
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#9db4aa99';
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(-5, -5);
+        ctx.lineTo(-5, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      for (const portal of portals) {
+        const pulse = reducedMotion.matches ? 0 : Math.sin(state.time * 5 + portal.id * 1.7) * 2;
+        circle(ctx, '#3dd6c624', portal.x, portal.y, portal.radius);
+        circle(ctx, '#58f0df', portal.x, portal.y, portal.radius, 2.5);
+        circle(ctx, '#c8fff866', portal.x, portal.y, Math.max(8, portal.radius - 7 + pulse), 1.5);
+        for (let id = 0; id < 2; id++) {
+          if (progress[id].nextPortal !== portal.id) continue;
+          const start = id === 0 ? Math.PI * 0.65 : -Math.PI * 0.35;
+          ctx.beginPath();
+          ctx.strokeStyle = pilots[id].color;
+          ctx.lineWidth = 4;
+          ctx.arc(portal.x, portal.y, portal.radius + 6, start, start + Math.PI * 0.7);
+          ctx.stroke();
+        }
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#e8fffb';
+        ctx.fillText(String(portal.id + 1), portal.x, portal.y + 6);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawModeOverlays(state) {
+    const ms = state.modeState;
+    if (!ms) return;
+    if (state.mode === 'ctf') {
+      for (const flag of ms.flags) {
+        if (flag.carrier === null) continue;
+        const carrier = state.robots[flag.carrier];
+        if (isAlive(carrier)) drawFlag(carrier.x + 12, carrier.y - 10, flag.id, state.time, 0.85);
+      }
+    }
+    if (state.mode === 'charge' && ms.core.carrier !== null) {
+      const { core, duration } = ms;
+      const carrier = state.robots[core.carrier];
+      if (isAlive(carrier)) {
+        const ratio = core.timer / duration;
+        const urgent = core.timer <= 3;
+        const warn = core.timer <= 5;
+        const color = urgent ? '#ff3d3d' : warn ? '#ff8b2b' : '#ffd24c';
+        const pulse = reducedMotion.matches ? 0 : Math.sin(state.time * (urgent ? 22 : 10)) * 3;
+        circle(ctx, color + '30', carrier.x, carrier.y, 31 + pulse);
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3.5;
+        ctx.arc(carrier.x, carrier.y, 31, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+        ctx.stroke();
+        if (state.time < core.transferLockUntil) {
+          ctx.setLineDash([4, 4]);
+          circle(ctx, '#9beeff', carrier.x, carrier.y, 37, 2);
+          ctx.setLineDash([]);
+        }
+        rect(ctx, '#0c0f10dd', carrier.x - 26, carrier.y + 24, 52, 17);
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = urgent ? '#ff9b9b' : '#ffe68c';
+        ctx.fillText(`${damageFormat.format(core.timer)}s`, carrier.x, carrier.y + 36);
+        ctx.restore();
+      }
+    }
+    if (state.mode === 'ctf' || state.mode === 'race') {
+      for (const robot of state.robots) {
+        if (isAlive(robot)) continue;
+        const remaining = Math.max(0, robot.respawnAt - state.time);
+        const spot = state.mode === 'ctf'
+          ? ms.bases[robot.id]
+          : ms.progress[robot.id].lastPortal !== null
+            ? ms.portals[ms.progress[robot.id].lastPortal]
+            : spawnPosition(robot.id);
+        const pilot = pilots[robot.id];
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        circle(ctx, pilot.color, spot.x, spot.y, RADIUS + 4, 2);
+        ctx.setLineDash([]);
+        rect(ctx, '#0c0f10dd', spot.x - 24, spot.y - 9, 48, 17);
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = pilot.ink;
+        ctx.fillText(`${damageFormat.format(remaining)}s`, spot.x, spot.y + 4);
+        ctx.restore();
+      }
+    }
   }
 
   function drawProjectile(shot) {
@@ -284,6 +496,7 @@ export function createRenderer(canvas) {
     }
     ctx.drawImage(backdrop, 0, 0);
     for (const roller of state.rollers) drawRoller(roller, state.time);
+    drawModeFloor(state);
     for (const drop of state.drops) {
       const pulse = 16 + 2 * Math.sin(state.time * 5);
       if (drop.type === 'medal') {
@@ -304,6 +517,7 @@ export function createRenderer(canvas) {
       ctx.fillText(dropSymbols[drop.type] ?? t(`dropSymbol.${drop.type}`), drop.x, drop.y + 6);
     }
     for (const robot of state.robots) {
+      if (!isAlive(robot)) continue;
       const color = pilots[robot.id].ink;
       for (const tool of robot.utils) {
         if (tool.until <= state.time) continue;
@@ -321,6 +535,7 @@ export function createRenderer(canvas) {
       }
       drawRobot(robot, state.time);
     }
+    drawModeOverlays(state);
     state.projectiles.forEach(drawProjectile);
     state.effects.forEach(event => drawEffect(event, state));
     const scale = Math.max(1, WIDTH * 0.83 / Math.max(canvas.clientWidth, 250));
@@ -329,13 +544,16 @@ export function createRenderer(canvas) {
       x: Math.max(inset, Math.min(WIDTH - inset, robot.x)),
       y: Math.max(7 * scale, robot.y - RADIUS - 18 * scale),
     }));
-    if (Math.abs(labels[0].x - labels[1].x) < 68 * scale &&
+    if (isAlive(state.robots[0]) && isAlive(state.robots[1]) &&
+        Math.abs(labels[0].x - labels[1].x) < 68 * scale &&
         Math.abs(labels[0].y - labels[1].y) < 21 * scale) {
       const top = labels[0].y <= labels[1].y ? 0 : 1;
       const raised = labels[1 - top].y - 21 * scale;
       if (raised >= 7 * scale) labels[top].y = raised;
       else labels[1 - top].y = labels[top].y + 21 * scale;
     }
-    state.robots.forEach((robot, id) => drawHP(robot, labels[id], scale));
+    state.robots.forEach((robot, id) => {
+      if (isAlive(robot)) drawHP(robot, labels[id], scale);
+    });
   };
 }
