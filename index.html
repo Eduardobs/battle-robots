@@ -49,6 +49,14 @@
           <p class="intro" data-t="intro"></p>
           <div class="hero-match"><span data-icon="clock"></span><strong id="match-length"></strong><i></i><span data-t="duel"></span></div>
         </div>
+        <div class="mode-picker">
+          <label class="field-label" for="game-mode" data-t="gameMode"></label>
+          <select id="game-mode" aria-describedby="mode-rules">
+            <option value="battle" data-t="mode.battle"></option>
+            <option value="medals" data-t="mode.medals"></option>
+          </select>
+          <p id="mode-rules" aria-live="polite"></p>
+        </div>
       </header>
       <div class="bay-heading"><h2 data-t="loadouts"></h2><span class="bay-rule"></span><span class="ready-count" id="ready-count"></span></div>
       <div id="bays" class="bays"></div>

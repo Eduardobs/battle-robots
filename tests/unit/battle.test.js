@@ -24,6 +24,52 @@ function duel(loadouts, options = {}) {
   return { ...battle, events };
 }
 
+test('as medalhas aparecem desde o início e periodicamente, junto com os drops comuns', () => {
+  for (const mode of ['battle', 'medals']) {
+    const stationary = loadout({ speed: 0 });
+    const { state, step } = duel([stationary, stationary], { mode });
+    const medals = () => state.drops.filter(drop => drop.type === 'medal').length;
+    assert.equal(medals(), mode === 'medals' ? 1 : 0);
+    for (let frame = 0; frame < 8 / STEP; frame++) step();
+    assert.equal(medals(), mode === 'medals' ? 3 : 0);
+    assert.equal(state.drops.length - medals(), 1);
+  }
+});
+
+test('o robô prioriza a medalha mesmo com cura próxima e ataca durante a coleta', () => {
+  const { state, step } = duel([loadout({ weapons: ['hammer'], strategy: 'score' }), loadout({ speed: 0 })],
+    { mode: 'medals', duration: 10 });
+  const [robot, enemy] = state.robots;
+  Object.assign(robot, { x: 150, y: 60, hp: 50 });
+  Object.assign(enemy, { x: 150 + 2 * RADIUS, y: 60 });
+  const medal = state.drops[0];
+  Object.assign(medal, { x: robot.x - 25, y: robot.y });
+  state.drops.push({ x: robot.x, y: robot.y, type: 'health' });
+  step();
+  assert.equal(robot.goal, medal);
+  assert.equal(robot.report.drops.medal, 1);
+  assert.equal(enemy.report.drops.medal, 0);
+  assert.equal(robot.report.drops.health, 1);
+  assert.equal(robot.report.boosts, 0);
+  assert.ok(enemy.hp < enemy.stats.hp);
+  step();
+  assert.equal(robot.report.drops.medal, 1);
+});
+
+test('as medalhas decidem a partida por tempo ou nocaute, mesmo se o líder for destruído', () => {
+  for (const reason of ['timeout', 'knockout']) {
+    for (const [medals, winner] of [[2, 0], [1, null], [0, 1]]) {
+      const { state, step } = duel([loadout(), loadout()], { mode: 'medals', duration: reason === 'timeout' ? STEP : 10 });
+      const [a, b] = state.robots;
+      a.report.drops.medal = medals;
+      b.report.drops.medal = 1;
+      a.hp = reason === 'timeout' ? 1 : 0;
+      step();
+      assert.deepEqual(state.result, { reason, winner });
+    }
+  }
+});
+
 test('a velocidade 100 percorre dez vezes a distância da velocidade 10 em campo livre', () => {
   const { state, step } = duel([loadout({ speed: 100 }), loadout()]);
   const [fast, slow] = state.robots;

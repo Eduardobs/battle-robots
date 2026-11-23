@@ -1,4 +1,3 @@
-import { DROP_TYPES } from '../battle.js';
 import { guns, pilots } from '../catalog.js';
 import { locale, numberFormat, t } from '../i18n.js';
 import { formatHP, hpAmount, timecode } from '../ui/format.js';
@@ -19,7 +18,7 @@ function comparisonPanel(title, symbol, rows, reports) {
   </table>`;
 }
 
-export function renderBattleReport({ result, robots, time }) {
+export function renderBattleReport({ result, robots, time, mode }) {
   const { winner, reason } = result;
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
   const accuracy = ({ hits, misses }) => hits + misses ? percent.format(hits / (hits + misses)) : '—';
@@ -39,14 +38,15 @@ export function renderBattleReport({ result, robots, time }) {
   });
   const outcome = byId('result-outcome');
   outcome.className = `report-outcome ${winner === null ? '' : pilots[winner].className}`;
-  byId('result-reason').textContent = t(reason);
+  byId('result-reason').textContent = mode === 'medals' ? `${t('mode.medals')} · ${t(reason)}` : t(reason);
   byId('result-winner').textContent = winner === null ? t('draw') : t('winner', { name: t(pilots[winner].nameKey) });
   byId('result-duration').textContent = timecode(time);
-  byId('result-score').innerHTML = robots.map(({ id, hp, stats }) => {
+  byId('result-score').innerHTML = robots.map(({ id, hp, stats, report }) => {
     const ratio = hp / stats.hp;
     const pilot = pilots[id];
     return `<div class="report-health ${pilot.className}">
       <div><strong>${t(pilot.nameKey)}</strong><span>${percent.format(ratio)}</span></div>
+      ${mode === 'medals' ? `<strong class="medal-score">${t('medalScore', { count: report.drops.medal })}</strong>` : ''}
       <div class="hp-track" aria-hidden="true"><i style="width:${100 * ratio}%"></i></div>
       <span>${t('hpScore', { current: formatHP(hp), max: formatHP(stats.hp), unit: t('hpUnit') })}</span>
     </div>`;
@@ -68,7 +68,7 @@ export function renderBattleReport({ result, robots, time }) {
     ], reports),
     comparisonPanel('report.drops', 'layers', [
       ['report.dropsTotal', value('dropsTotal')],
-      ...DROP_TYPES.map(type => [`drop.${type}`, report => numberFormat.format(report.drops[type])]),
+      ...Object.keys(reports[0].drops).map(type => [`drop.${type}`, report => numberFormat.format(report.drops[type])]),
       ['report.boosts', value('boosts')],
     ], reports),
     comparisonPanel('report.tools', 'settings', [

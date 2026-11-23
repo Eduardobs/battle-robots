@@ -2,7 +2,10 @@
 
 Duelo 2D de robôs autônomos para dois jogadores no mesmo navegador. No hangar, distribua pontos, selecione equipamentos e escolha uma estratégia para cada robô. A partida começa assim que os dois jogadores clicam em **Pronto**.
 
-Na arena, os robôs contornam paredes, desaceleram na lama e usam o equipamento instalado. A partida termina no primeiro nocaute ou quando o cronômetro chega a zero. Vence o robô com mais HP absoluto. Valores iguais resultam em empate.
+Escolha o modo de jogo no hangar. Nos dois modos, os robôs usam o equipamento instalado e a partida termina no primeiro nocaute ou quando o cronômetro chega a zero.
+
+- **Batalha intensa** é o modo padrão. Vence quem destrói o adversário ou, ao fim do tempo, quem conserva o maior percentual de vida. Percentuais iguais resultam em empate.
+- **Colete as medalhas** começa com uma medalha na arena. Outra aparece a cada 4 segundos. Os robôs priorizam a coleta e continuam lutando. Vence quem coletou mais medalhas, mesmo que tenha sofrido o nocaute. Contagens iguais resultam em empate.
 
 Quando os dois robôs estão em contato e tentam avançar um contra o outro, o de maior **Potência** empurra o adversário na direção em que avança. Quanto maior a diferença de Potência, mais rápido o empurrão. Potências iguais mantêm a disputa no lugar.
 

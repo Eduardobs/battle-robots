@@ -286,6 +286,16 @@ export function createRenderer(canvas) {
     for (const roller of state.rollers) drawRoller(roller, state.time);
     for (const drop of state.drops) {
       const pulse = 16 + 2 * Math.sin(state.time * 5);
+      if (drop.type === 'medal') {
+        const { x, y } = drop;
+        circle(ctx, '#ffce5966', x, y, pulse, 2);
+        line(ctx, '#bc4b39', 6, { x: x - 6, y: y - 12 }, { x, y: y - 4 });
+        line(ctx, '#e36b4a', 6, { x: x + 6, y: y - 12 }, { x, y: y - 4 });
+        circle(ctx, '#693c16', x, y + 3, 11);
+        circle(ctx, '#ffcd52', x, y + 3, 9);
+        circle(ctx, '#b57320', x, y + 3, 6, 1.5);
+        continue;
+      }
       circle(ctx, '#dbfb4866', drop.x, drop.y, pulse, 2);
       rect(ctx, '#dbfb48', drop.x - 10, drop.y - 10, 20, 20);
       ctx.fillStyle = '#182015';

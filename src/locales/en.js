@@ -1,4 +1,12 @@
 export default {
+  "gameMode": "Game mode",
+  "mode.battle": "Intense battle",
+  "mode.battle.rules": "Destroy the opponent or finish with the highest percentage of health when time runs out.",
+  "mode.medals": "Collect the medals",
+  "mode.medals.rules": "Collect more medals than your opponent. The match ends when time runs out or either robot reaches zero HP.",
+  "medalScore": "Medals · {count}",
+  "drop.medal": "Medal",
+  "intent.medal": "Chasing a medal",
   "darkTheme": "Dark theme",
   "toggleTheme": "Toggle light and dark themes",
   "loadouts": "Robot loadouts",

@@ -52,6 +52,7 @@ test('o hangar aplica o orçamento de atributos e restaura as escolhas após rec
   await expect(budget).toHaveText(String(ATTRIBUTES_POINTS));
 
   const maxHP = ATTRIBUTES_BASE + ATTRIBUTES_POINTS;
+  await hp.scrollIntoViewIfNeeded();
   const track = await hp.boundingBox();
   await page.mouse.move(track.x + 7, track.y + track.height / 2);
   await page.mouse.down();
@@ -273,6 +274,32 @@ test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ p
   await expect(summary).toBeHidden();
   await expect(hangar.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(2);
   await expect(first.locator('#hp-0')).toBeEnabled();
+});
+
+test('a seleção de medalhas no hangar leva as coletas ao placar e ao resumo', async ({ page }) => {
+  await page.clock.install();
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await page.goto('/');
+  const mode = page.getByRole('combobox', { name: 'Game mode' });
+  await expect(mode).toHaveValue('battle');
+  await mode.selectOption('medals');
+  await page.locator('#language').selectOption('pt-br');
+  await expect(page.locator('#game-mode')).toHaveValue('medals');
+  await expect(page.locator('#mode-rules')).toContainText('Colete mais medalhas');
+  const speed = page.locator('[data-attribute="speed"] input[type="number"]').first();
+  await speed.fill('300');
+  await speed.press('Enter');
+  for (const button of await page.locator('.bay .ready-button').all()) await button.click();
+  await page.clock.runFor(1000);
+  const totals = ['Medalhas · 1', 'Medalhas · 0'];
+  await expect(page.locator('#scoreboard .medal-score')).toHaveText(totals);
+  await page.locator('#finish-battle').click();
+  await expect(page.locator('#result-winner')).toHaveText('Vermelho venceu');
+  await expect(page.locator('#result-score .medal-score')).toHaveText(totals);
+  await page.locator('#reset').click();
+  await page.locator('#game-mode').selectOption('battle');
+  for (const button of await page.locator('.bay .ready-button').all()) await button.click();
+  await expect(page.locator('#scoreboard .medal-score')).toHaveCount(0);
 });
 
 test('a batalha pode ser pausada, retomada e encerrada durante a pausa', async ({ page }) => {

@@ -67,15 +67,15 @@ export function createArenaController({ setStage, onReset }) {
     frameId = requestAnimationFrame(frame);
   }
 
-  function start(loadouts) {
+  function start(loadouts, mode) {
     clearEvents();
     paused = false;
     elapsed = 0;
     nextScore = SCORE_INTERVAL;
-    battle = createBattle(loadouts, { onEvent: queueEvent });
+    battle = createBattle(loadouts, { mode, onEvent: queueEvent });
     updateBattleControls();
     setStage('arena');
-    buildScoreboard();
+    buildScoreboard(battle.state.mode);
     render(battle.state);
     updateScore(battle.state);
     flushEvents();
@@ -120,8 +120,8 @@ export function createArenaController({ setStage, onReset }) {
   function translate() {
     updateBattleControls();
     if (!battle) return;
-    buildScoreboard();
     const { state } = battle;
+    buildScoreboard(state.mode);
     render(state);
     updateScore(state);
     translateEvents();

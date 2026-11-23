@@ -11,6 +11,7 @@ export { EDGE, generateArena, HEIGHT, RADIUS, WIDTH } from './simulation/arena.j
 export const STEP = 1 / 60;
 
 const SPIKE_DAMAGE_PER_SECOND = 4;
+const MEDAL_INTERVAL = 4;
 export const DROP_TYPES = ['health', 'attribute', 'weapon', 'tool', 'teleport'];
 
 function weaponStats() {
@@ -23,10 +24,11 @@ function recordShot(robot, key) {
 }
 
 export function createBattle(loadouts, {
-  random = Math.random, duration = BATTLE_TIME_IN_SECONDS, onEvent = () => {},
+  random = Math.random, duration = BATTLE_TIME_IN_SECONDS, mode = 'battle', onEvent = () => {},
 } = {}) {
   const arena = generateArena(random);
   const navigation = prepareNavigation(arena.walls, [...arena.spikePatches, ...arena.rollers]);
+  const dropTypes = mode === 'medals' ? [...DROP_TYPES, 'medal'] : DROP_TYPES;
   const robots = loadouts.map((loadout, id) => {
     const stats = { projectileSpeed: ATTRIBUTES_BASE, power: ATTRIBUTES_BASE, ...loadout.stats };
     const baseStats = Object.fromEntries(attributes.map(({ id }) => [id, stats[id]]));
@@ -41,15 +43,16 @@ export function createBattle(loadouts, {
       report: {
         weapons: Object.fromEntries(loadout.guns.map(key => [key, weaponStats()])),
         tools: Object.fromEntries(loadout.utils.map(key => [key, 0])),
-        drops: Object.fromEntries(DROP_TYPES.map(type => [type, 0])),
+        drops: Object.fromEntries(dropTypes.map(type => [type, 0])),
         healing: 0, damageTaken: 0, defenseMitigated: 0, shieldMitigated: 0, spikeDamage: 0,
         decoys: 0, beaconReturns: 0, boosts: 0, controlHits: 0,
       },
     };
   });
-  const state = { ...arena, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
+  const state = { ...arena, mode, robots, drops: [], effects: [], projectiles: [], time: 0, duration, result: null };
 
   let nextDrop = 5;
+  let nextMedal = MEDAL_INTERVAL;
   const pick = list => list[Math.floor(random() * list.length)];
   const positions = [];
   for (let x = 90; x < WIDTH - 60; x += 55) {
@@ -67,10 +70,10 @@ export function createBattle(loadouts, {
       state.drops.every(drop => distance(point, drop) > 32));
   }
 
-  function spawnDrop() {
+  function spawnDrop(requestedType) {
     const spot = pick(freePositions());
     if (!spot) return;
-    const type = pick(DROP_TYPES);
+    const type = requestedType ?? pick(DROP_TYPES);
     state.drops.push({ ...spot, type });
     robots.forEach(robot => { robot.thinkAt = 0; });
     log(null, 'event.spawn', `drop.${type}`);
@@ -99,6 +102,7 @@ export function createBattle(loadouts, {
     robots.forEach(unit => { unit.thinkAt = 0; });
     robot.report.drops[drop.type]++;
     log(robot, 'event.collect', `drop.${drop.type}`);
+    if (drop.type === 'medal') return;
     if (drop.type === 'health') {
       const previousHP = robot.hp;
       robot.hp = Math.min(robot.stats.hp, robot.hp + robot.stats.hp * 0.15);
@@ -161,7 +165,9 @@ export function createBattle(loadouts, {
     if (state.result) return;
     robots.forEach(reportSpikeDamage);
     const [a, b] = robots;
-    const difference = a.hp / a.stats.hp - b.hp / b.stats.hp;
+    const difference = mode === 'medals'
+      ? a.report.drops.medal - b.report.drops.medal
+      : a.hp / a.stats.hp - b.hp / b.stats.hp;
     const winner = Math.abs(difference) < Number.EPSILON ? null : difference > 0 ? a.id : b.id;
     state.result = { winner, reason };
     log(null, `event.${reason}`);
@@ -264,6 +270,7 @@ export function createBattle(loadouts, {
   const orders = [[robots[0], robots[1]], [robots[1], robots[0]]];
   let turn = random() < 0.5 ? 0 : 1;
   log(null, 'event.start');
+  if (mode === 'medals') spawnDrop('medal');
 
   function step(dt = STEP) {
     if (state.result) return;
@@ -280,6 +287,10 @@ export function createBattle(loadouts, {
     effects.length = activeCount;
     const order = orders[turn];
     turn = 1 - turn;
+    if (mode === 'medals' && state.time + 1e-8 >= nextMedal) {
+      spawnDrop('medal');
+      nextMedal += MEDAL_INTERVAL;
+    }
     if (state.time + 1e-8 >= nextDrop) {
       spawnDrop();
       nextDrop += 5;

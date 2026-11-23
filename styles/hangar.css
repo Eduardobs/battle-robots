@@ -1,5 +1,5 @@
 #hangar { display: grid; gap: 16px; }
-.hangar-hero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; min-height: clamp(175px, 14vw, 225px); background: #181b1d; color: #fff; padding: 24px clamp(20px, 2.6vw, 48px); }
+.hangar-hero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: clamp(175px, 14vw, 225px); background: #181b1d; color: #fff; padding: 24px clamp(20px, 2.6vw, 48px); }
 .hangar-hero::before { content: ""; position: absolute; z-index: -1; inset: 0 0 0 26%; background: linear-gradient(90deg,#181b1d,transparent 34%), url("../assets/hangar-hero.webp") center 56% / cover; }
 .hangar-hero::after { content: ""; position: absolute; bottom: 0; left: 0; width: 115px; height: 5px; background: repeating-linear-gradient(-52deg,var(--signal) 0 5px,transparent 5px 10px); }
 .hero-kicker, .hero-match { display: flex; align-items: center; gap: 8px; font: 700 .68rem var(--mono); }
@@ -9,6 +9,10 @@
 .hero-match { margin-top: 14px; color: #eceee9; }
 .hero-match i { width: 1px; height: 12px; background: #8d9088; margin-inline: 4px; }
 .hero-match strong { font-weight: 600; }
+.mode-picker { display: grid; gap: 5px; width: min(100%, 20rem); padding: 12px 16px; background: #181b1df5; border-inline-start: 3px solid var(--signal); }
+.mode-picker .field-label { color: var(--signal); }
+.mode-picker select { width: 100%; padding: 5px 8px; background: #292d30; border: 1px solid #777e80; color: white; font: 700 1rem var(--body); }
+.mode-picker p { color: #e2e4df; font-size: .82rem; line-height: 1.4; }
 .bay-heading, .armament-heading { display: flex; align-items: center; gap: 12px; }
 .bay-heading h2 { font: 700 clamp(1.35rem, 1.6vw, 1.85rem)/1 var(--display); text-transform: uppercase; }
 .bay-rule { flex: 1; height: 1px; background: var(--border); }
@@ -122,7 +126,7 @@ button:disabled, fieldset:disabled input, fieldset:disabled select, .json-file:h
 @media (max-width: 760px) {
   .bays { grid-template-columns: minmax(0,1fr); }
   #hangar { gap: 12px; }
-  .hangar-hero { min-height: 155px; padding: 16px; }
+  .hangar-hero { min-height: 155px; padding: 16px; flex-direction: column; align-items: flex-start; }
   .hangar-hero::before { left: 0; opacity: .5; background-position: 60% center; }
   .intro { font-size: .8rem; max-width: 75%; }
   .hero-match { margin-top: 10px; font-size: .62rem; }

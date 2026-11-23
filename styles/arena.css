@@ -45,6 +45,7 @@ body:has(#arena:not([hidden])) {
 .score h2 { font: italic 800 1.85rem/1 var(--display); text-transform: uppercase; }
 .score-hp, .score-tools { font: 500 .75rem var(--mono); }
 .score-hp { text-align: right; }
+.medal-score { margin-top: 4px; font: 700 1.1rem var(--display); }
 .hp-track { margin-top: 4px; }
 .score .hp-track { height: 6px; }
 .score .hp-track i { transform-origin: left; transition: transform .1s linear; }

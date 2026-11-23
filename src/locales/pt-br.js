@@ -1,4 +1,12 @@
 export default {
+  "gameMode": "Modo de jogo",
+  "mode.battle": "Batalha intensa",
+  "mode.battle.rules": "Destrua o adversário ou termine o tempo com o maior percentual de vida.",
+  "mode.medals": "Colete as medalhas",
+  "mode.medals.rules": "Colete mais medalhas que o adversário. A partida termina quando o tempo acaba ou um robô chega a zero de vida.",
+  "medalScore": "Medalhas · {count}",
+  "drop.medal": "Medalha",
+  "intent.medal": "Buscando medalha",
   "darkTheme": "Tema escuro",
   "toggleTheme": "Alternar entre tema claro e escuro",
   "loadouts": "Montagem dos robôs",

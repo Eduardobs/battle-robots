@@ -8,6 +8,12 @@ import { icon } from './ui/icons.js';
 const byId = id => document.getElementById(id);
 const stages = ['hangar', 'arena', 'result'];
 const languageSelect = byId('language');
+const modeSelect = byId('game-mode');
+
+function updateModeRules() {
+  byId('mode-rules').textContent = t(`mode.${modeSelect.value}.rules`);
+}
+modeSelect.addEventListener('change', updateModeRules);
 
 document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
 
@@ -43,7 +49,8 @@ function applyLanguage(code) {
   document.querySelector('meta[name="description"]').content = t('description');
   languageSelect.setAttribute('aria-label', t('language'));
   byId('match-length').textContent = t('matchLength', { time: timecode(BATTLE_TIME_IN_SECONDS) });
-  buildBays(controller.start);
+  updateModeRules();
+  buildBays(loadouts => controller.start(loadouts, modeSelect.value));
   controller.translate();
 }
 

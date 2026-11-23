@@ -1,4 +1,12 @@
 export default {
+  "gameMode": "Modo de juego",
+  "mode.battle": "Batalla intensa",
+  "mode.battle.rules": "Destruye al rival o termina con el mayor porcentaje de salud cuando se agote el tiempo.",
+  "mode.medals": "Recoge las medallas",
+  "mode.medals.rules": "Recoge más medallas que tu rival. La partida termina cuando se agota el tiempo o un robot pierde toda su salud.",
+  "medalScore": "Medallas · {count}",
+  "drop.medal": "Medalla",
+  "intent.medal": "Buscando una medalla",
   "darkTheme": "Tema oscuro",
   "toggleTheme": "Alternar entre tema claro y oscuro",
   "loadouts": "Montaje de robots",

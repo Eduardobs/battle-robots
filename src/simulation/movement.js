@@ -91,6 +91,20 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
     return null;
   }
 
+  function nearestMedal(robot) {
+    let nearest;
+    let shortest = Infinity;
+    for (const drop of state.drops) {
+      if (drop.type !== 'medal') continue;
+      const cost = nextWaypoint(robot, drop, navigation, true);
+      if (cost < shortest) {
+        nearest = drop;
+        shortest = cost;
+      }
+    }
+    return nearest;
+  }
+
   function chooseGoal(robot, enemy, range) {
     const span = distance(robot, enemy);
     const nearCorner = Math.min(robot.x, WIDTH - robot.x) < 145 &&
@@ -100,15 +114,16 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
       (robot.strategy === 'distance' && span < range * 0.6));
     let intent;
     let goal;
-    const finalStretch = robot.strategy === 'score' && state.duration - state.time <= 20;
+    const finalStretch = state.mode === 'battle' && robot.strategy === 'score' && state.duration - state.time <= 20;
     const ahead = finalStretch && robot.hp > enemy.hp;
     const heal = finalStretch && robot.hp < enemy.hp && robot.hp < robot.stats.hp &&
       state.drops.filter(drop => drop.type === 'health');
     const drops = finalStretch ? (heal || []) : state.drops;
     const cooling = robot.strategy === 'skirmish' && robot.guns[0]?.ready > state.time + 0.15;
-    const intercept = robot.strategy === 'intercept' && robot.guns.length &&
+    const medal = state.mode === 'medals' && nearestMedal(robot);
+    const intercept = !medal && robot.strategy === 'intercept' && robot.guns.length &&
       interceptPoint(robot, enemy, range);
-    const push = rollerGoal(robot, enemy);
+    const push = !medal && rollerGoal(robot, enemy);
     const echo = enemy.echo;
     if (echo && distance(robot, echo.point) <= ECHO_RADIUS + 8) {
       intent = 'retreat';
@@ -126,6 +141,9 @@ export function createMovement(state, navigation, maneuverPositions, { random, a
           shortest = gap;
         }
       }
+    } else if (medal) {
+      intent = 'drop';
+      goal = medal;
     } else if (push) {
       intent = 'push';
       goal = push;
