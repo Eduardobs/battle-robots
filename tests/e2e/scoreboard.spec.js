@@ -15,6 +15,7 @@ test('o placar acompanha a troca de arma no mesmo slot e o fim de um bônus', as
       updateScore(state);
       const weapon = panel.querySelector('[data-kind="guns"] li');
       return {
+        sprites: [...panel.closest('.score').querySelectorAll('.score-armament img')].map(img => new URL(img.src).pathname.split('/').pop()),
         weapon: weapon.textContent.trim().replace(/\s+/g, ' '),
         cooldown: weapon.querySelector('.weapon-cooldown')?.textContent,
         bonus: panel.querySelector('.battle-stats .drop-bonus')?.textContent,
@@ -34,6 +35,7 @@ test('o placar acompanha a troca de arma no mesmo slot e o fim de um bônus', as
     return [initial, replacement, snapshot()];
   });
 
+  expect(snapshots.map(snapshot => snapshot.sprites)).toEqual([['pistol-arena.webp'], ['nitrogen-arena.webp'], []]);
   expect(snapshots[0].weapon).toContain('Pistol');
   expect(snapshots[0].cooldown).toBe('2.00');
   expect(snapshots[0].bonus).toContain('+1');

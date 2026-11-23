@@ -1,5 +1,9 @@
 const icons = {
   mark: '<path fill="currentColor" stroke="none" d="M3 19 10 4h5L8 19zm8 0 7-15h4l-7 15z"/>',
+  expand: '<path d="M14 4h6v6m-6 0 6-6M10 20H4v-6m6 0-6 6"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+  moon: '<path d="M20.5 14.8A9 9 0 0 1 9.2 3.5 9 9 0 1 0 20.5 14.8Z"/>',
   globe: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
   hangar: '<path d="m3 8 9-5 9 5v12H3zm4 12v-8h10v8M7 15h10"/>',
   code: '<path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/>',

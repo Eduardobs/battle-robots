@@ -3,9 +3,15 @@ import { drawBattleMounts } from '../ui/equipment-art.js';
 import { pilots } from '../catalog.js';
 import { damageFormat, t } from '../i18n.js';
 
+const sparkDirections = Array.from({ length: 6 }, (_, i) => {
+  const angle = (i + 0.25) * Math.PI / 3;
+  return [Math.cos(angle), Math.sin(angle)];
+});
+
 const dropSymbols = { health: '+', attribute: '↑', teleport: '↯' };
 
 export function createRenderer(canvas) {
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const ctx = canvas.getContext('2d', { alpha: false });
   const backdrop = document.createElement('canvas');
   backdrop.width = WIDTH;
@@ -84,15 +90,15 @@ export function createRenderer(canvas) {
   }
 
   function drawGround(state) {
-    rect(ground, '#14202c', 0, 0, WIDTH, HEIGHT);
+    rect(ground, '#23292b', 0, 0, WIDTH, HEIGHT);
     for (let x = 24; x < WIDTH; x += 24) {
-      line(ground, x % 96 ? '#1d2d3b' : '#2a3e50', 1, { x, y: 0 }, { x, y: HEIGHT });
+      line(ground, x % 96 ? '#2c3334' : '#3a4141', 1, { x, y: 0 }, { x, y: HEIGHT });
     }
     for (let y = 24; y < HEIGHT; y += 24) {
-      line(ground, y % 96 ? '#1d2d3b' : '#2a3e50', 1, { x: 0, y }, { x: WIDTH, y });
+      line(ground, y % 96 ? '#2c3334' : '#3a4141', 1, { x: 0, y }, { x: WIDTH, y });
     }
-    circle(ground, '#354956', WIDTH / 2, HEIGHT / 2, 95, 2);
-    circle(ground, '#243543', WIDTH / 2, HEIGHT / 2, 79, 1);
+    circle(ground, '#58615d', WIDTH / 2, HEIGHT / 2, 95, 2);
+    circle(ground, '#3c4443', WIDTH / 2, HEIGHT / 2, 79, 1);
     for (const [id, x] of [71, WIDTH - 71].entries()) {
       circle(ground, pilots[id].color + '55', x, HEIGHT / 2, 32, 2);
       circle(ground, pilots[id].color + '22', x, HEIGHT / 2, 42, 1);
@@ -144,7 +150,7 @@ export function createRenderer(canvas) {
       ground.rect(x + 2, y + 2, w - 4, h - 4);
       ground.clip();
       for (let offset = -h; offset < w; offset += 20) {
-        line(ground, '#635525', 7, { x: x + offset, y: y + h }, { x: x + offset + h, y });
+        line(ground, '#a28335', 7, { x: x + offset, y: y + h }, { x: x + offset + h, y });
       }
       ground.restore();
     }
@@ -198,6 +204,17 @@ export function createRenderer(canvas) {
     ctx.globalAlpha = 1 - progress;
     if (kind === 'hit') {
       circle(ctx, '#ffc176', from.x, from.y, 18 + progress * 8, 2);
+      if (!reducedMotion.matches) {
+        const distance = 9 + 19 * progress;
+        ctx.strokeStyle = '#ffcf74';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (const [dx, dy] of sparkDirections) {
+          ctx.moveTo(from.x + dx * distance, from.y + dy * distance);
+          ctx.lineTo(from.x + dx * (distance + 6), from.y + dy * (distance + 6));
+        }
+        ctx.stroke();
+      }
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffe1a0';

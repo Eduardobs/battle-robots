@@ -248,7 +248,7 @@ test('dois jogadores confirmam, veem o resultado e voltam ao hangar', async ({ p
   await second.getByRole('button', { name: 'Ready', exact: true }).click();
   await expect(hangar).toBeHidden();
   await expect(arena).toBeVisible();
-  await expect(arena.getByRole('img')).toBeVisible();
+  await expect(arena.getByRole('img', { name: /Overhead view/ })).toBeVisible();
   await expect(arena.locator('#events')).toContainText('Battle started');
 
   await page.clock.runFor(2200);

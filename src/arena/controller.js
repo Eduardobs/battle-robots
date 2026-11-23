@@ -23,6 +23,7 @@ export function createArenaController({ setStage, onReset }) {
 
   function updateBattleControls() {
     const finished = Boolean(battle?.state.result);
+    byId('arena').dataset.state = finished ? 'finished' : paused ? 'paused' : 'live';
     battleControls.hidden = !battle || finished;
     viewResult.hidden = !finished;
     byId('battle-status').textContent = t(finished ? 'finished' : paused ? 'paused' : 'intent.fight');

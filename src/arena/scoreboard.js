@@ -1,6 +1,8 @@
-import { attributes, equipmentCatalogs, pilots } from '../catalog.js';
+import { attributes, pilots } from '../catalog.js';
 import { decimalSeparator, numberFormat, t } from '../i18n.js';
 import { formatHP, timecode } from '../ui/format.js';
+import { spriteUrl } from '../ui/equipment-art.js';
+import { highlight } from '../ui/feedback.js';
 import { icon } from '../ui/icons.js';
 
 let scores = [];
@@ -10,7 +12,7 @@ let displayedSeconds;
 function scorePanel(pilot, id) {
   const stats = attributes.map(attr => `<div><dt>${icon(attr.icon)} ${t(`attr.${attr.id}.name`)}</dt><dd></dd></div>`).join('');
   const detailsOpen = document.getElementById(`robot-details-${id}`)?.open;
-  return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-hp"></span></div>
+  return `<section class="score ${pilot.className}" aria-labelledby="robot-title-${id}"><div><h2 id="robot-title-${id}">${t(pilot.nameKey)}</h2><span class="score-armament" role="group" aria-label="${t('weapon')}"></span><span class="score-hp"></span></div>
     <div class="hp-track"><i></i></div><div class="score-tools"></div>
     <ul class="battle-statuses"><li></li><li></li><li></li></ul>
     <details class="robot-details" id="robot-details-${id}"${detailsOpen ? ' open' : ''}>
@@ -31,7 +33,7 @@ export function buildScoreboard() {
   scores = [...document.querySelectorAll('.score')].map(score => ({
     statuses: score.querySelector('.battle-statuses').children,
     stats: [...score.querySelectorAll('.battle-stats dd')].map((field, index) => ({ field, id: attributes[index].id })),
-    guns: { list: score.querySelector('[data-kind="guns"]') },
+    guns: { list: score.querySelector('[data-kind="guns"]'), strip: score.querySelector('.score-armament') },
     utils: { list: score.querySelector('[data-kind="utils"]') },
     hp: score.querySelector('.score-hp'), bar: score.querySelector('.hp-track i'), tools: score.querySelector('.score-tools'),
   }));
@@ -40,10 +42,16 @@ export function buildScoreboard() {
 function updateEquipment(group, items, kind) {
   if (group.items?.length === items.length && items.every((item, i) => item === group.items[i])) return;
   group.items = [...items];
+  if (group.strip) {
+    group.strip.innerHTML = items.map(({ key }) => {
+      const name = t(`guns.${key}.name`);
+      return `<img src="${spriteUrl(key, 'arena')}" width="18" height="18" alt="${name}" title="${name}">`;
+    }).join('');
+  }
   const counterClass = kind === 'guns' ? 'weapon-cooldown' : 'tool-cooldown';
   const counterTip = t(kind === 'guns' ? 'cooldownTip' : 'toolCooldownTip');
   group.list.innerHTML = items.map(({ key, expires }) => `<li>
-    ${icon(equipmentCatalogs[kind][key].icon)} <span>${t(`${kind}.${key}.name`)}${expires
+    <img class="slot-sprite" src="${spriteUrl(key, 'arena')}" width="18" height="18" alt=""> <span>${t(`${kind}.${key}.name`)}${expires
       ? ` <small class="drop-bonus">${t('dropBonus')}</small>` : ''}</span>
     <span class="${counterClass}" title="${counterTip}"></span></li>`).join('') || '<li>—</li>';
   group.counters = group.list.querySelectorAll(`.${counterClass}`);
@@ -104,17 +112,19 @@ export function updateScore(state) {
   const seconds = Math.ceil(state.duration - state.time);
   if (displayedSeconds !== seconds) {
     displayedSeconds = seconds;
+    countdown.parentElement.classList.toggle('is-urgent', seconds <= 10);
     countdown.textContent = timecode(seconds);
   }
   state.robots.forEach((robot, id) => {
     const score = scores[id];
     if (score.currentHP !== robot.hp || score.maxHP !== robot.stats.hp) {
+      if (robot.hp < score.currentHP) highlight(score.hp);
       score.currentHP = robot.hp;
       score.maxHP = robot.stats.hp;
       score.hp.textContent = t('hpScore', {
         current: formatHP(robot.hp), max: numberFormat.format(robot.stats.hp), unit: t('hpUnit'),
       });
-      score.bar.style.width = `${robot.hp / robot.stats.hp * 100}%`;
+      score.bar.style.transform = `scaleX(${robot.hp / robot.stats.hp})`;
     }
   });
   updateRobotDetails(state);

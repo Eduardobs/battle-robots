@@ -34,6 +34,7 @@ function applyLanguage(code) {
   setLanguage(code);
   document.documentElement.lang = locale;
   languageSelect.value = language;
+  languageSelect.parentElement.dataset.code = language.toUpperCase();
   document.querySelectorAll('[data-t]').forEach(element => { element.textContent = t(element.dataset.t); });
   document.querySelectorAll('[data-t-label]').forEach(element => {
     element.setAttribute('aria-label', t(element.dataset.tLabel));

@@ -1,7 +1,7 @@
 .battle-report {
   display: grid;
   gap: 16px;
-  max-width: 1600px;
+  max-width: 1760px;
   margin-inline: auto;
 }
 .report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -10,6 +10,7 @@
   background: var(--panel);
   color: var(--text);
 }
+.report-secondary:enabled:hover { background: var(--inset); color: var(--text); }
 .report-outcome {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto minmax(260px, 1.15fr);
@@ -17,20 +18,23 @@
   gap: 16px;
   padding: clamp(12px, 2vw, 28px);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent, var(--signal));
-  background: linear-gradient(105deg, var(--tint, #fe824e16), transparent 55%), var(--panel);
+  position: relative;
+  min-height: 140px;
+  color: white;
+  border-left: 5px solid var(--team, var(--signal));
+  background: linear-gradient(100deg,#1a1d1d 14%,#242927cf), repeating-linear-gradient(-55deg,#444a44 0 2px,#242927 2px 12px);
+}
+.report-outcome::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: 94px;
+  background: repeating-linear-gradient(-55deg,var(--signal) 0 4px,transparent 4px 9px);
 }
 .report-trophy {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 1px solid var(--border);
-  background: var(--inset);
-  color: var(--accent, var(--signal));
+  width: 58px; height: 58px; border: 1px solid #6a6250; background: #332f24; color: var(--signal);
 }
 .report-trophy .icon { width: 30px; height: 30px; }
-.report-verdict .eyebrow { color: var(--accent, var(--signal)); }
+.report-verdict .eyebrow { color: var(--signal); margin-bottom: 4px; }
 .report-verdict h2 {
   font: italic 800 clamp(1.9rem, 4vw, 3.65rem)/1 var(--display);
   text-transform: uppercase;
@@ -45,7 +49,7 @@
   gap: 5px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  background: var(--inset);
+  background: var(--subtle);
   color: var(--muted);
   font: 500 .75rem/1.4 var(--mono);
 }
@@ -58,7 +62,7 @@
 .report-table { width: 100%; border-collapse: collapse; font-size: .81rem; }
 .report-table caption, .report-weapon-panel h3 {
   padding: 8px 10px;
-  background: var(--inset);
+  background: var(--ink); color: #fff;
   text-align: left;
   font: 700 1.35rem/1.15 var(--display);
   letter-spacing: .035em;
@@ -70,7 +74,7 @@
   border-top: 1px solid var(--border);
 }
 .report-table thead th {
-  background: #192532;
+  background: var(--inset);
   color: var(--accent, var(--muted));
   font: 600 .7rem/1.3 var(--mono);
   text-transform: uppercase;
@@ -89,7 +93,7 @@
   font: 700 1.6rem/1 var(--display);
   text-transform: uppercase;
 }
-.report-weapon-panel h3 { border-top: 2px solid var(--accent); color: var(--accent); }
+.report-weapon-panel h3 { border-top: 3px solid var(--team); background: var(--tint); color: var(--accent); }
 .report-weapon-panel .icon { width: 15px; height: 15px; color: var(--accent); }
 .report-weapon-panel thead th { color: var(--muted); }
 .report-weapon-panel tbody th { min-width: 8rem; }
@@ -118,4 +122,13 @@
   .report-trophy { width: 34px; height: 34px; }
   .report-trophy .icon { width: 22px; height: 22px; }
   .report-health { padding: 6px; }
+}
+
+.report-heading h1 { font-size: clamp(2.3rem,3.5vw,4rem); }
+.report-notes summary { font-weight: 650; }
+.report-health .hp-track { height: 5px; }
+@media (max-width: 480px) {
+  .report-outcome { grid-template-columns: 36px minmax(0,1fr); }
+  .report-outcome .match-summary { grid-column: 2; }
+  .report-actions button { padding: 6px 10px; font-size: .95rem; }
 }

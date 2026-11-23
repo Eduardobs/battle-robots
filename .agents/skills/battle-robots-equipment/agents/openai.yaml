@@ -1,0 +1,4 @@
+interface:
+  display_name: "Equipamentos do Battle Robots"
+  short_description: "Crie peças com arte para o hangar e a arena 2D"
+  default_prompt: "Use $battle-robots-equipment para criar uma ferramenta de reparo para o jogo com as duas artes e validar os arquivos."

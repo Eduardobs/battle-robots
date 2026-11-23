@@ -4,13 +4,14 @@ body:has(#arena:not([hidden])) {
   height: max(720px, 100dvh);
 }
 
-body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
+
 
 .shell:has(#arena:not([hidden])) {
   display: grid;
   min-height: 0;
   min-width: 0;
-  padding-block: 8px;
+  padding-block: 14px;
+  margin-block: 0;
 }
 
 #arena {
@@ -21,32 +22,35 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   gap: 8px;
 }
 
-.arena-heading { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; }
+.arena-heading { padding: 14px 18px; border-left: 4px solid var(--signal); background: var(--ink); color: white; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; }
 #battle-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #battle-controls .ready-button { min-height: 34px; padding: 0 8px; font-size: 1rem; }
 #finish-battle { border-color: var(--border); background: var(--panel); color: var(--text); }
-#finish-battle:hover { border-color: var(--signal); color: var(--signal); }
-.arena-heading h1 { font-size: clamp(1.4rem, 2vw, 2rem); }
+#finish-battle:hover { border-color: var(--signal); background: #fff0bb; color: var(--ink); }
+.arena-heading h1 { font-size: clamp(1.8rem, 2.4vw, 3rem); }
 .scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; }
 .score, .timer { border: 1px solid var(--border); background: var(--panel); }
 .score {
   display: grid;
   align-content: start;
   min-height: 0;
-  padding: 5px clamp(6px,1vw,16px);
-  border-top: 3px solid var(--accent);
+  padding: 9px clamp(8px,1vw,16px);
+  border-top: 4px solid var(--team);
   background: linear-gradient(110deg,var(--tint),transparent 45%), var(--panel);
   color: var(--accent);
 }
 .score > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
-.score h2 { font: italic 800 1.4rem/1 var(--display); text-transform: uppercase; }
+.score-armament { display: flex; align-self: center; flex-wrap: wrap; gap: 2px; flex: 1; }
+.score-armament img { object-fit: contain; }
+.score h2 { font: italic 800 1.85rem/1 var(--display); text-transform: uppercase; }
 .score-hp, .score-tools { font: 500 .75rem var(--mono); }
 .score-hp { text-align: right; }
 .hp-track { margin-top: 4px; }
-.hp-track i { transition: none; }
-.score-tools { min-height: 1em; margin-top: 3px; color: #c5ebfa; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.timer { display: grid; align-content: center; justify-items: center; gap: 2px; padding: 4px 8px; background: #0d1621; }
-.timer strong { font: 600 clamp(1.3rem,2vw,2rem)/1 var(--mono); color: var(--signal); }
+.score .hp-track { height: 6px; }
+.score .hp-track i { transform-origin: left; transition: transform .1s linear; }
+.score-tools { min-height: 1em; margin-top: 3px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.timer { display: grid; align-content: center; justify-items: center; gap: 2px; padding: 4px 8px; color: #efefea; background: var(--ink); }
+.timer strong { font: 600 clamp(1.65rem,3vw,3.1rem)/1 var(--mono); color: var(--signal); }
 .timer-label { display: flex; align-items: center; gap: 4px; font-size: .65rem; }
 .timer-label .icon { width: 14px; height: 14px; color: var(--signal); }
 .arena-layout {
@@ -112,9 +116,10 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   border-top: 1px solid var(--border);
 }
 .battle-stats > div { justify-content: space-between; }
+.slot-sprite { align-self: center; flex: none; }
 .battle-stats dd { margin: 0; text-align: right; font-family: var(--mono); }
 .battle-stats .drop-bonus { margin-inline-start: 4px; }
-.drop-bonus { color: var(--signal); font: 500 .68rem var(--mono); white-space: nowrap; }
+.drop-bonus { color: var(--warning); font: 500 .68rem var(--mono); white-space: nowrap; }
 .weapon-cooldown, .tool-cooldown {
   flex: none;
   margin-inline-start: auto;
@@ -123,9 +128,9 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   white-space: nowrap;
 }
 .weapon-cooldown:empty, .tool-cooldown:empty { display: none; }
-.arena-frame { position: relative; align-self: stretch; min-height: 0; padding: 4px; border: 1px solid #405364; background: #1b2835; }
-#field { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--inset); }
-#battle-status { display: flex; align-items: center; justify-self: end; gap: 6px; color: var(--muted); font: .8rem var(--mono); }
+.arena-frame { position: relative; align-self: stretch; min-height: 0; padding: 4px; border: 1px solid #405364; background: #363a38; }
+#field { display: block; width: 100%; height: 100%; object-fit: contain; background: #181c1e; }
+#battle-status { display: flex; align-items: center; justify-self: end; gap: 6px; color: #e0e2dd; font: .8rem var(--mono); }
 #battle-status::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
 .battle-log {
   display: grid;
@@ -136,7 +141,7 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   border: 1px solid var(--border);
   background: var(--inset);
 }
-.battle-log h2 { padding: 12px 15px; }
+.battle-log h2 { padding: 12px 15px; background: var(--ink); color: white; }
 .battle-log .icon { color: var(--signal); }
 #event-scroll {
   display: grid;
@@ -152,7 +157,7 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   grid-template-columns: subgrid;
 }
 .event-columns, #events li { padding: 8px 12px; align-items: baseline; }
-#events li { min-height: 40px; border-bottom: 1px solid #222f3e; }
+#events li { min-height: 40px; border-bottom: 1px solid var(--border); }
 .event-action { overflow-wrap: anywhere; font-family: var(--body); }
 .event-damage { text-align: right; }
 .event-columns {
@@ -165,10 +170,10 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   text-transform: uppercase;
 }
 #events { margin: 0; padding: 0; list-style: none; }
-#events li:nth-child(even) { background: #141e2a; }
+#events li:nth-child(even) { background: var(--panel); }
 #events .orange, #events .blue { color: var(--accent); }
 .event-time { color: var(--muted); }
-.event-damage { color: #ffc296; }
+.event-damage { color: var(--danger); }
 .event-pager { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding: 8px 12px; border-top: 1px solid var(--border); color: var(--muted); font: .73rem var(--mono); }
 .event-pager .icon { color: var(--text); width: 15px; height: 15px; }
 #older-events .icon { transform: rotate(180deg); }
@@ -180,7 +185,7 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   .battle-stats > div, .battle-slots li { padding: 3px 0; }
 }
 @media (max-width: 920px) {
-  body:has(#arena:not([hidden])) { height: auto; }
+  body:has(#arena:not([hidden])) { display: block; height: auto; }
   #arena { grid-template-rows: auto auto auto; align-content: start; }
   .arena-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -190,12 +195,6 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
 }
 
 @media (max-width: 720px) {
-  body:has(#arena:not([hidden])) .topbar-inner { grid-template-columns: minmax(0, 1fr) auto; padding-top: 0; gap: 4px; }
-  body:has(#arena:not([hidden])) .stages { display: none; }
-  body:has(#arena:not([hidden])) .brand { gap: 6px; font-size: 1.1rem; }
-  body:has(#arena:not([hidden])) .brand-icon { width: 24px; height: 24px; }
-  body:has(#arena:not([hidden])) .brand-icon .icon { width: 18px; height: 18px; }
-  body:has(#arena:not([hidden])) .language-select { padding: 5px 24px 5px 27px; font-size: .75rem; }
   .arena-heading { grid-template-columns: auto minmax(0, 1fr); }
   #battle-status { font-size: .72rem; }
   #battle-controls { grid-column: 1 / -1; gap: 6px; }
@@ -205,3 +204,11 @@ body:has(#arena:not([hidden])) .topbar-inner { min-height: 46px; }
   .timer { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .score > div:first-child { flex-wrap: wrap; }
 }
+
+.timer.is-urgent strong { color: #ff9775; }
+#arena[data-state="paused"] .arena-frame::after {
+  content: "Ⅱ"; display: grid; place-items: center; position: absolute; top: 10px; right: 10px; width: 32px; height: 32px;
+  background: var(--signal); color: var(--ink); font: 700 1.2rem var(--mono); pointer-events: none;
+}
+#arena[data-state="live"] #battle-status::before { background: #64d08b; }
+#arena[data-state="finished"] #battle-status::before { background: #bac0b7; }

@@ -1,8 +1,10 @@
 import { ATTRIBUTES_BASE, ATTRIBUTES_POINTS } from '../../config.js';
 import { attributes, equipmentCatalogs, pilots } from '../catalog.js';
 import { numberFormat, t } from '../i18n.js';
-import { hangarMounts } from '../ui/equipment-art.js';
+import { hangarMounts, spriteUrl } from '../ui/equipment-art.js';
+import { highlight } from '../ui/feedback.js';
 import { icon } from '../ui/icons.js';
+import { openArmory } from './armory.js';
 import { bindConfiguration } from './json-panel.js';
 import { loadouts, remaining, saveConfigurations } from './loadouts.js';
 import { createPreset, presets } from './presets.js';
@@ -26,9 +28,13 @@ function equipment(id, kind, selection, name) {
   const fields = selection.map((_, slot) => {
     const field = `${kind}-${id}-${slot}`;
     const label = selection.length > 1 ? t('equipmentSlot', { name, number: slot + 1 }) : name;
+    const illustrated = kind !== 'strategy';
     return `<div class="equipment" ${slot ? 'hidden' : ''}>
       <label class="field-label" for="${field}">${label}</label>
-      <span class="select-wrap"><i></i><select id="${field}" data-kind="${kind}" data-slot="${slot}" aria-describedby="${field}-detail">${options(kind)}</select>${icon('chevron')}</span>
+      <div class="equipment-choice">
+        ${illustrated ? `<button type="button" class="browse-parts" data-browse="${field}" aria-haspopup="dialog" aria-label="${t('browseSlot', { slot: label })}" title="${t('browseSlot', { slot: label })}"><img alt="" width="58" height="48">${icon('expand')}</button>` : ''}
+        <span class="select-wrap"><i></i><select id="${field}" data-kind="${kind}" data-slot="${slot}" aria-describedby="${field}-detail">${options(kind)}</select>${icon('chevron')}</span>
+      </div>
       <small id="${field}-detail"></small>
     </div>`;
   }).join('');
@@ -58,7 +64,7 @@ export function buildBays(onReady) {
     open: !bay.querySelector('.loadout-json').hidden,
     status: bay.querySelector('.json-status').dataset.message,
     preset: bay.querySelector('.preset-picker select').value,
-    slots: [...bay.querySelectorAll('.equipment:not([hidden]) select')].map(select => select.id),
+    slots: [...bay.querySelectorAll('.equipment-group .equipment:not([hidden]) select')].map(select => select.id),
   }));
   bays.innerHTML = pilots.map((pilot, id) => {
     const name = t(pilot.nameKey);
@@ -75,6 +81,17 @@ export function buildBays(onReady) {
         <span class="reticle" aria-hidden="true"></span>
       </div>
       <div class="bay-controls">
+        <fieldset class="equipment-grid" id="equipment-panel-${id}">
+          <legend class="sr-only">${t('equipmentLegend', { name })}</legend>
+          <div class="armament-heading"><h3>${icon('swords')} ${t('equipment')}</h3>
+            ${loadouts[id].guns.length || loadouts[id].utils.length ? `<button type="button" class="armory-link" aria-haspopup="dialog">${t('armory')} ${icon('expand')}</button>` : ''}
+          </div>
+          <p class="install-status" role="status" aria-live="polite"></p>
+          <div class="armament-row">
+            ${equipment(id, 'guns', loadouts[id].guns, t('weapon'))}
+            ${equipment(id, 'utils', loadouts[id].utils, t('tool'))}
+          </div>
+        </fieldset>
         <div class="attribute-section">
           <div class="attributes-title"><h3>${icon('settings')} ${t('attributes')}</h3><div class="budget"><output></output> ${t('points')}</div></div>
           <div class="budget-meter"><span></span></div>
@@ -99,12 +116,10 @@ export function buildBays(onReady) {
           </fieldset>
         </div>
         <div class="equipment-section">
-          <fieldset class="equipment-grid" id="equipment-panel-${id}">
+          <fieldset class="tuning">
             <legend class="sr-only">${t('equipmentLegend', { name })}</legend>
-            <h3>${icon('layers')} ${t('equipment')}</h3>
+            <h3>${icon('layers')} ${t('configuration')}</h3>
             ${presetPicker(id)}
-            ${equipment(id, 'guns', loadouts[id].guns, t('weapon'))}
-            ${equipment(id, 'utils', loadouts[id].utils, t('tool'))}
             ${equipment(id, 'strategy', [loadouts[id].strategy], t('strategy'))}
           </fieldset>
           <section class="loadout-json" id="json-panel-${id}" aria-labelledby="json-title-${id}" hidden>
@@ -184,11 +199,26 @@ function refreshAttributes(id) {
 }
 
 function refreshEquipment(id) {
-  const { bay } = bayList[id];
+  const controls = bayList[id];
+  const { bay, mounted } = controls;
   const loadout = loadouts[id];
-  bay.querySelector('.mount-tip').hidden = true;
-  bay.querySelector('.mounted-equipment').innerHTML = hangarMounts(loadout.utils, 'utils', id) +
-    hangarMounts(loadout.guns, 'guns', id);
+  const kinds = ['utils', 'guns'];
+  const changes = [];
+  for (const kind of kinds) {
+    loadout[kind].forEach((key, slot) => {
+      if (mounted?.[kind][slot] !== key) changes.push(t(`${kind}.${key}.name`));
+    });
+  }
+  if (!mounted || changes.length) {
+    bay.querySelector('.mount-tip').hidden = true;
+    bay.querySelector('.mounted-equipment').innerHTML = kinds.map(kind =>
+      hangarMounts(loadout[kind], kind, id, mounted?.[kind])).join('');
+    controls.mounted = { guns: [...loadout.guns], utils: [...loadout.utils] };
+    if (mounted) {
+      bay.querySelector('.install-status').textContent = changes.length === 1
+        ? t('partInstalled', { name: changes[0] }) : t('partsInstalled', { count: changes.length });
+    }
+  }
   for (const select of bay.querySelectorAll('select[data-kind]')) {
     const { kind, slot } = select.dataset;
     const selected = loadout[kind];
@@ -198,6 +228,8 @@ function refreshEquipment(id) {
     if (kind !== 'strategy') for (const option of select.options) {
       option.disabled = option.value !== key && selected.includes(option.value);
     }
+    const preview = select.closest('.equipment').querySelector('.browse-parts img');
+    if (preview) preview.src = spriteUrl(key, 'hangar');
     select.parentElement.querySelector('i').innerHTML = icon(item.icon ?? 'target');
     document.getElementById(`${select.id}-detail`).textContent = t(`${kind}.${key}.description`);
   }
@@ -210,6 +242,9 @@ function refreshReady(id) {
   for (const control of bay.querySelectorAll('[data-json="apply"], .json-file input')) {
     control.disabled = loadout.ready;
   }
+  for (const mount of bay.querySelectorAll('.mount-target')) {
+    mount.setAttribute('aria-disabled', String(loadout.ready));
+  }
   bay.classList.toggle('is-ready', loadout.ready);
   bay.querySelector('.pilot-state span').textContent = t(loadout.ready ? 'ready' : 'configuring');
   const ready = bay.querySelector('.ready-button');
@@ -219,6 +254,7 @@ function refreshReady(id) {
   document.querySelectorAll('.readiness-lights i').forEach((light, index) => {
     light.classList.toggle('confirmed', loadouts[index].ready);
   });
+  document.getElementById('ready-count').textContent = t('readyCount', { count });
   document.getElementById('ready-status').textContent = t('readyStatus', { count });
 }
 
@@ -231,7 +267,7 @@ function setAttribute(id, key, requested) {
   refreshAttributes(id);
 }
 
-function bindMountTooltip(bay) {
+function bindMounts(bay, id) {
   const chassis = bay.querySelector('.chassis');
   const mounts = chassis.querySelector('.mounted-equipment');
   const tip = chassis.querySelector('.mount-tip');
@@ -248,6 +284,18 @@ function bindMountTooltip(bay) {
     tip.style.left = `${Math.max(4, Math.min(center - tip.offsetWidth / 2, chassis.clientWidth - tip.offsetWidth - 4))}px`;
     tip.style.top = `${above >= 4 ? above : Math.min(part.bottom - frame.top + 5, chassis.clientHeight - tip.offsetHeight - 4)}px`;
   }
+  function browse(target) {
+    if (!target.dataset.field || loadouts[id].ready) return;
+    tip.hidden = true;
+    openArmory(bay, document.getElementById(target.dataset.field), id);
+  }
+  mounts.addEventListener('click', event => browse(event.target));
+  mounts.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      browse(event.target);
+    }
+  });
   mounts.addEventListener('pointerover', event => show(event.target));
   mounts.addEventListener('focusin', event => show(event.target));
   mounts.addEventListener('pointerout', () => { tip.hidden = true; });
@@ -255,7 +303,13 @@ function bindMountTooltip(bay) {
 }
 
 function bindBay({ bay, rows }, id, onReady) {
-  bindMountTooltip(bay);
+  bindMounts(bay, id);
+  bay.querySelector('.armory-link')?.addEventListener('click', () => {
+    openArmory(bay, bay.querySelector('.armament-row .equipment:not([hidden]) select'), id);
+  });
+  bay.querySelectorAll('[data-browse]').forEach(button => button.addEventListener('click', () => {
+    openArmory(bay, document.getElementById(button.dataset.browse), id);
+  }));
   const loadout = loadouts[id];
   const refreshConfiguration = () => {
     saveConfigurations();
@@ -292,6 +346,7 @@ function bindBay({ bay, rows }, id, onReady) {
     for (const { id: key } of attributes) loadout.stats[key] = ATTRIBUTES_BASE;
     saveConfigurations();
     refreshAttributes(id);
+    highlight(bay.querySelector('.attributes'));
   });
   bay.querySelector('[data-attributes="random"]').addEventListener('click', () => {
     const points = remaining(loadout);
@@ -304,6 +359,7 @@ function bindBay({ bay, rows }, id, onReady) {
     });
     saveConfigurations();
     refreshAttributes(id);
+    highlight(bay.querySelector('.attributes'));
   });
   bay.querySelectorAll('select[data-kind]').forEach(select => select.addEventListener('change', () => {
     const { kind, slot } = select.dataset;
@@ -330,7 +386,7 @@ function bindBay({ bay, rows }, id, onReady) {
   bay.querySelector('.json-toggle').addEventListener('click', event => {
     const panel = bay.querySelector('.loadout-json');
     panel.hidden = !panel.hidden;
-    bay.querySelector('.equipment-grid').hidden = !panel.hidden;
+    bay.querySelector('.tuning').hidden = !panel.hidden;
     event.currentTarget.setAttribute('aria-expanded', String(!panel.hidden));
     event.currentTarget.querySelector('span').textContent = t(panel.hidden ? 'loadoutJson' : 'backEquipment');
     event.currentTarget.title = t(panel.hidden ? 'jsonTip' : 'backEquipment');
@@ -345,6 +401,7 @@ function bindBay({ bay, rows }, id, onReady) {
   bay.querySelector('.ready-button').addEventListener('click', () => {
     loadout.ready = !loadout.ready;
     refreshReady(id);
+    highlight(bay.querySelector('.pilot-state'));
     if (loadouts.every(entry => entry.ready)) onReady(loadouts);
   });
   refreshAttributes(id);

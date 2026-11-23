@@ -3,26 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#10151d">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#17191b">
   <meta name="description" content="Configure dois robôs e acompanhe um duelo autônomo na arena.">
   <title data-t="title">Battle Robots</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+  <script src="./src/ui/theme.js"></script>
+  <link rel="preload" href="./assets/fonts/barlow-condensed-extrabold-italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./styles/base.css">
   <link rel="stylesheet" href="./styles/hangar.css">
+  <link rel="stylesheet" href="./styles/armory.css">
   <link rel="stylesheet" href="./styles/arena.css">
   <link rel="stylesheet" href="./styles/battle-report.css">
   <script type="module" src="./src/main.js"></script>
 </head>
 <body>
+  <aside class="rail">
+    <span class="rail-emblem" data-icon="mark" aria-hidden="true"></span>
+    <nav class="stages" data-t-label="stages">
+      <span id="stage-hangar" aria-current="step"><span data-icon="hangar"></span><span data-t="hangar"></span></span>
+      <span id="stage-arena"><span data-icon="target"></span><span data-t="arena"></span></span>
+      <span id="stage-result"><span data-icon="log"></span><span data-t="report.stage"></span></span>
+    </nav>
+    <span class="rail-stripes" aria-hidden="true"></span>
+  </aside>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand"><span class="brand-icon" data-icon="mark"></span><span><span data-t="brandFirst">BATTLE</span> <span class="brand-accent" data-t="brandLast">ROBOTS</span></span></div>
-      <nav class="stages" data-t-label="stages">
-        <span id="stage-hangar" aria-current="step"><span data-icon="hangar"></span><span data-t="hangar"></span></span><b></b>
-        <span id="stage-arena"><span data-icon="target"></span><span data-t="arena"></span></span><b></b>
-        <span id="stage-result"><span data-icon="log"></span><span data-t="report.stage"></span></span>
-      </nav>
-      <div class="locale-control"><span data-icon="globe"></span><select id="language" class="language-select">
+      <div class="brand"><span data-t="brandFirst">BATTLE</span><span class="brand-accent" data-t="brandLast">ROBOTS</span></div>
+      <span class="duel-format"><i></i>1 VS 1<i></i></span>
+      <button id="theme" class="theme-toggle" type="button" aria-pressed="false" aria-label="Tema escuro" data-t-label="darkTheme" data-t-title="toggleTheme">
+        <span data-icon="sun"></span><span data-icon="moon"></span>
+      </button>
+      <div class="locale-control"><span data-icon="globe"></span><select id="language" class="header-select language-select">
         <option value="pt-br" lang="pt-BR">Português (Brasil)</option>
         <option value="en" lang="en">English</option>
         <option value="es" lang="es">Español</option>
@@ -31,13 +42,15 @@
   </header>
   <main class="shell">
     <section id="hangar" aria-labelledby="hangar-title">
-      <div class="page-heading">
-        <div>
+      <header class="hangar-hero">
+        <div class="hero-content">
+          <p class="hero-kicker"><span data-icon="swords"></span><span data-t="preparation"></span></p>
           <h1 id="hangar-title" tabindex="-1" data-t="hangarTitle"></h1>
           <p class="intro" data-t="intro"></p>
+          <div class="hero-match"><span data-icon="clock"></span><strong id="match-length"></strong><i></i><span data-t="duel"></span></div>
         </div>
-        <div class="match-summary"><span class="match-symbol" data-icon="clock"></span><div><span class="meta-label" data-t="duel"></span><strong id="match-length"></strong></div></div>
-      </div>
+      </header>
+      <div class="bay-heading"><h2 data-t="loadouts"></h2><span class="bay-rule"></span><span class="ready-count" id="ready-count"></span></div>
       <div id="bays" class="bays"></div>
       <div class="hangar-status"><span class="readiness-lights" aria-hidden="true"><i></i><i></i></span><p id="ready-status" class="ready-status" role="status"></p></div>
     </section>
@@ -103,5 +116,13 @@
       </details>
     </section>
   </main>
+  <dialog id="armory" aria-labelledby="armory-title">
+    <header class="armory-header">
+      <div><p class="eyebrow" id="armory-context"></p><h2 id="armory-title"></h2></div>
+      <button type="button" data-close-armory data-t-label="close" data-icon="close"></button>
+    </header>
+    <div id="armory-slots" class="armory-slots"></div>
+    <div id="armory-items" class="armory-items"></div>
+  </dialog>
 </body>
 </html>
